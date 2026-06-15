@@ -1,4 +1,5 @@
 import type { SavedScript, Profile, AIConfig, CaptureMode } from './types';
+import type { Locale } from '../i18n/types';
 
 // ── Fingerprint / Key helpers ──────────────────────────────────────────────
 
@@ -90,4 +91,18 @@ export async function getCaptureMode(): Promise<CaptureMode> {
 
 export async function saveCaptureMode(mode: CaptureMode): Promise<void> {
   await chrome.storage.local.set({ [CAPTURE_MODE_KEY]: mode });
+}
+
+// ── UI locale ──────────────────────────────────────────────────────────────
+
+const UI_LOCALE_KEY = 'uiLocale';
+
+export async function getUiLocale(): Promise<Locale | null> {
+  const res = await chrome.storage.local.get(UI_LOCALE_KEY);
+  const v = res[UI_LOCALE_KEY];
+  return v === 'en' || v === 'zh-CN' ? v : null;
+}
+
+export async function saveUiLocale(locale: Locale): Promise<void> {
+  await chrome.storage.local.set({ [UI_LOCALE_KEY]: locale });
 }

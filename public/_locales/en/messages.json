@@ -1,0 +1,6 @@
+{
+  "name": { "message": "AI Form Filler" },
+  "description": { "message": "Auto-fill web forms using AI" },
+  "actionTitle": { "message": "AI Form Filler" },
+  "commandQuickFill": { "message": "Open a quick menu when the current page matches a cached form" }
+}

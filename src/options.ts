@@ -4,10 +4,9 @@
 
 import type { AIConfig, Profile } from './utils/types';
 import { getAIConfig, saveAIConfig, getProfiles, saveProfiles } from './utils/storage';
+import { initI18n, applyI18n, t, setLocale, onLocaleChange, getLocale, type Locale } from './i18n';
 
 type Provider = 'anthropic' | 'openai' | 'custom' | 'custom-anthropic';
-
-// ── Model presets (仅作输入建议，可输入任意模型 ID) ─────────────────────────
 
 const CLAUDE_MODELS = ['claude-sonnet-4-6', 'claude-opus-4-6', 'claude-haiku-4-5-20251001'];
 
@@ -18,7 +17,6 @@ const MODELS: Record<Provider, string[]> = {
   'custom-anthropic': CLAUDE_MODELS,
 };
 
-// 各 provider 的默认 Base URL（留空则使用此值）
 const DEFAULT_BASE_URL: Record<Provider, string> = {
   anthropic: 'https://api.anthropic.com',
   openai: 'https://api.openai.com/v1',
@@ -26,10 +24,7 @@ const DEFAULT_BASE_URL: Record<Provider, string> = {
   'custom-anthropic': '',
 };
 
-// 需要用户必填 Base URL 的 provider
 const CUSTOM_PROVIDERS: Provider[] = ['custom', 'custom-anthropic'];
-
-// ── DOM refs ──────────────────────────────────────────────────────────────
 
 const providerEl = document.getElementById('ai-provider') as HTMLSelectElement;
 const modelEl = document.getElementById('ai-model') as HTMLInputElement;
@@ -39,6 +34,7 @@ const baseUrlHint = document.getElementById('base-url-hint')!;
 const apiKeyEl = document.getElementById('api-key') as HTMLInputElement;
 const btnSaveAI = document.getElementById('btn-save-ai')!;
 const aiSaveMsg = document.getElementById('ai-save-msg')!;
+const localeEl = document.getElementById('ui-locale') as HTMLSelectElement;
 
 const profileList = document.getElementById('profile-list')!;
 const btnAddProfile = document.getElementById('btn-add-profile')!;
@@ -51,39 +47,55 @@ const btnDeleteProfile = document.getElementById('btn-delete-profile') as HTMLBu
 const customFieldsContainer = document.getElementById('custom-fields-container')!;
 const btnAddCustomField = document.getElementById('btn-add-custom-field')!;
 
-// ── State ─────────────────────────────────────────────────────────────────
-
 let profiles: Profile[] = [];
 let editingProfileId: string | null = null;
 
-// ── AI Config ─────────────────────────────────────────────────────────────
-
 function updateModelOptions() {
   const provider = providerEl.value as Provider;
-  // 刷新模型 ID 建议列表（datalist），不清空用户已输入的值
   modelPresetsEl.innerHTML = '';
   for (const m of MODELS[provider]) {
     const opt = document.createElement('option');
     opt.value = m;
     modelPresetsEl.appendChild(opt);
   }
-  // 未填模型时给一个默认建议
   if (!modelEl.value && MODELS[provider].length > 0) {
     modelEl.value = MODELS[provider][0];
   }
-  // 更新 Base URL 提示
   const def = DEFAULT_BASE_URL[provider];
-  baseUrlEl.placeholder = def || 'https://your-endpoint.com/v1 (required)';
+  baseUrlEl.placeholder = def || t('options.baseUrlPlaceholderRequired');
   if (provider === 'custom') {
-    baseUrlHint.textContent = 'Enter the Base URL of an OpenAI-compatible endpoint (no /chat/completions suffix), e.g. a local or third-party proxy';
+    baseUrlHint.textContent = t('options.baseUrlHintCustom');
   } else if (provider === 'custom-anthropic') {
-    baseUrlHint.textContent = 'Enter the Base URL of a Claude/Anthropic-compatible endpoint (no /v1/messages suffix)';
+    baseUrlHint.textContent = t('options.baseUrlHintCustomAnthropic');
   } else {
-    baseUrlHint.textContent = `Default: ${def} (override here for a proxy; no suffix needed)`;
+    baseUrlHint.textContent = t('options.baseUrlHintDefault', { url: def });
   }
 }
 
 providerEl.addEventListener('change', updateModelOptions);
+
+localeEl.addEventListener('change', async () => {
+  const locale = localeEl.value as Locale;
+  if (locale !== 'en' && locale !== 'zh-CN') return;
+  await setLocale(locale);
+  refreshUi();
+});
+
+function refreshUi() {
+  applyI18n();
+  updateModelOptions();
+  renderProfiles();
+  if (profileEditor.classList.contains('show')) {
+    if (editingProfileId) {
+      const p = profiles.find(x => x.id === editingProfileId);
+      if (p) editorTitle.textContent = t('options.editProfile', { name: p.name });
+    } else {
+      editorTitle.textContent = t('options.newProfileTitle');
+    }
+  }
+}
+
+onLocaleChange(refreshUi);
 
 btnSaveAI.addEventListener('click', async () => {
   const provider = providerEl.value as Provider;
@@ -95,28 +107,26 @@ btnSaveAI.addEventListener('click', async () => {
   };
 
   if (!config.apiKey) {
-    showMsg(aiSaveMsg, 'error', 'Please enter your API Key');
+    showMsg(aiSaveMsg, 'error', t('options.errApiKey'));
     return;
   }
   if (!config.model) {
-    showMsg(aiSaveMsg, 'error', 'Please enter a Model ID');
+    showMsg(aiSaveMsg, 'error', t('options.errModel'));
     return;
   }
   if (CUSTOM_PROVIDERS.includes(provider) && !config.baseUrl) {
-    showMsg(aiSaveMsg, 'error', 'Custom provider requires a Base URL');
+    showMsg(aiSaveMsg, 'error', t('options.errBaseUrl'));
     return;
   }
 
   await saveAIConfig(config);
-  showMsg(aiSaveMsg, 'success', '✓ Saved');
+  showMsg(aiSaveMsg, 'success', t('common.saved'));
 });
-
-// ── Profiles ──────────────────────────────────────────────────────────────
 
 function renderProfiles() {
   profileList.innerHTML = '';
   if (profiles.length === 0) {
-    profileList.innerHTML = '<li style="font-size:12px;color:var(--muted);padding:4px 0;">No profiles yet</li>';
+    profileList.innerHTML = `<li style="font-size:12px;color:var(--muted);padding:4px 0;">${escHtml(t('options.noProfiles'))}</li>`;
     return;
   }
   for (const p of profiles) {
@@ -125,8 +135,8 @@ function renderProfiles() {
     const fieldCount = Object.keys(p.fields).filter(k => p.fields[k]).length;
     li.innerHTML = `
       <span class="profile-name">${escHtml(p.name)}</span>
-      <span class="profile-meta">${fieldCount} fields</span>
-      <button class="btn btn-secondary btn-sm" data-id="${escHtml(p.id)}">Edit</button>`;
+      <span class="profile-meta">${escHtml(t('common.fields', { count: fieldCount }))}</span>
+      <button class="btn btn-secondary btn-sm" data-id="${escHtml(p.id)}">${escHtml(t('common.edit'))}</button>`;
     li.querySelector('button')!.addEventListener('click', () => openEditor(p.id));
     profileList.appendChild(li);
   }
@@ -137,13 +147,11 @@ function openEditor(profileId?: string) {
 
   if (profileId) {
     const p = profiles.find(x => x.id === profileId)!;
-    editorTitle.textContent = `Edit profile: ${p.name}`;
+    editorTitle.textContent = t('options.editProfile', { name: p.name });
     profileNameInput.value = p.name;
-    // Fill standard fields
     profileEditor.querySelectorAll<HTMLInputElement>('[data-key]').forEach(el => {
       el.value = p.fields[el.dataset.key!] ?? '';
     });
-    // Custom fields
     customFieldsContainer.innerHTML = '';
     const standardKeys = new Set(
       [...profileEditor.querySelectorAll<HTMLInputElement>('[data-key]')].map(e => e.dataset.key!)
@@ -153,7 +161,7 @@ function openEditor(profileId?: string) {
     }
     btnDeleteProfile.style.display = 'inline-flex';
   } else {
-    editorTitle.textContent = 'New profile';
+    editorTitle.textContent = t('options.newProfileTitle');
     profileNameInput.value = '';
     profileEditor.querySelectorAll<HTMLInputElement>('[data-key]').forEach(el => {
       el.value = '';
@@ -175,8 +183,8 @@ function addCustomFieldRow(key = '', value = '') {
   const row = document.createElement('div');
   row.className = 'custom-field-row';
   row.innerHTML = `
-    <input type="text" class="custom-key" placeholder="Field name (key)" value="${escHtml(key)}" />
-    <input type="text" class="custom-val" placeholder="Value" value="${escHtml(value)}" />
+    <input type="text" class="custom-key" placeholder="${escHtml(t('options.fieldKeyPlaceholder'))}" value="${escHtml(key)}" />
+    <input type="text" class="custom-val" placeholder="${escHtml(t('common.value'))}" value="${escHtml(value)}" />
     <button class="btn btn-danger btn-sm">✕</button>`;
   row.querySelector('button')!.addEventListener('click', () => row.remove());
   customFieldsContainer.appendChild(row);
@@ -184,7 +192,6 @@ function addCustomFieldRow(key = '', value = '') {
 
 btnAddProfile.addEventListener('click', () => openEditor());
 btnCancelProfile.addEventListener('click', closeEditor);
-
 btnAddCustomField.addEventListener('click', () => addCustomFieldRow());
 
 btnSaveProfile.addEventListener('click', async () => {
@@ -200,7 +207,6 @@ btnSaveProfile.addEventListener('click', async () => {
     if (v) fields[el.dataset.key!] = v;
   });
 
-  // Custom fields
   customFieldsContainer.querySelectorAll('.custom-field-row').forEach(row => {
     const k = (row.querySelector('.custom-key') as HTMLInputElement).value.trim();
     const v = (row.querySelector('.custom-val') as HTMLInputElement).value.trim();
@@ -221,14 +227,12 @@ btnSaveProfile.addEventListener('click', async () => {
 
 btnDeleteProfile.addEventListener('click', async () => {
   if (!editingProfileId) return;
-  if (!confirm('Delete this profile?')) return;
+  if (!confirm(t('common.deleteProfileConfirm'))) return;
   profiles = profiles.filter(p => p.id !== editingProfileId);
   await saveProfiles(profiles);
   renderProfiles();
   closeEditor();
 });
-
-// ── Helpers ───────────────────────────────────────────────────────────────
 
 function showMsg(el: HTMLElement, type: 'success' | 'error', text: string) {
   el.className = `save-msg ${type}`;
@@ -240,10 +244,11 @@ function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────
-
 async function init() {
-  // Load AI config
+  await initI18n();
+  localeEl.value = getLocale();
+  applyI18n();
+
   const cfg = await getAIConfig();
   if (cfg) {
     providerEl.value = cfg.provider;
@@ -255,7 +260,6 @@ async function init() {
     updateModelOptions();
   }
 
-  // Load profiles
   profiles = await getProfiles();
   renderProfiles();
 }

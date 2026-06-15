@@ -14,10 +14,14 @@
 
 import { callAI, detectFields, repairActions } from './utils/ai';
 import { getFingerprint, getAIConfig, getProfile } from './utils/storage';
+import { initI18n, t, onLocaleChange } from './i18n';
 import type {
   AIConfig, CaptureMode, DetectedField, FillAction, FillTarget,
   FormCacheEntry, OuterHtmlResponse, ValidationIssue,
 } from './utils/types';
+
+initI18n().then(() => { refreshMenusForActive(); });
+onLocaleChange(() => { refreshMenusForActive(); });
 
 // ── Side panel ────────────────────────────────────────────────────────────
 
@@ -85,7 +89,7 @@ let executionLock = false;
 
 function withLock<T>(fn: () => Promise<T>): Promise<T> {
   if (executionLock) {
-    throw new Error('Busy, please wait...');
+    throw new Error(t('background.busy'));
   }
   executionLock = true;
   return fn().finally(() => { executionLock = false; });
@@ -102,7 +106,7 @@ async function sendToTab<T = any>(tabId: number, msg: object): Promise<T> {
   try {
     return (await chrome.tabs.sendMessage(tabId, msg)) as T;
   } catch {
-    throw new Error('无法连接页面脚本（content script 未注入）。请刷新目标页面后重试；浏览器内置页面（chrome:// 等）不受支持。');
+    throw new Error(t('background.errContentScript'));
   }
 }
 
@@ -111,7 +115,7 @@ async function captureSnapshot(tabId: number, selector: string): Promise<{ plain
   const res = await sendToTab<{ snapshot?: string; refSnapshot?: string; error?: string }>(
     tabId, { type: 'pwAriaSnapshot', selector });
   if (!res || res.error || !res.snapshot) {
-    throw new Error(`页面快照失败：${res?.error ?? '无响应'}（若刚更新扩展，请刷新目标页面）`);
+    throw new Error(t('background.errSnapshot', { detail: res?.error ?? t('background.errNoResponse') }));
   }
   return { plain: res.snapshot, ref: res.refSnapshot || res.snapshot };
 }
@@ -135,7 +139,7 @@ async function handleStartSelection(tabId: number) {
 async function requireAIConfig() {
   const aiConfig = await getAIConfig();
   if (!aiConfig?.apiKey) {
-    throw new Error('AI not configured. Please set your API Key in the Settings page first.');
+    throw new Error(t('background.errAiNotConfigured'));
   }
   return aiConfig;
 }
@@ -146,7 +150,7 @@ async function requireAIConfig() {
 async function handleSnapshotForm(message: { tabId: number; selector: string; mode: CaptureMode }) {
   const { tabId, selector, mode } = message;
 
-  progress('Reading the selected region...', 1, 1);
+  progress(t('background.readingRegion'), 1, 1);
   const { plain, ref } = await captureSnapshot(tabId, selector);
   const domHash = getFingerprint(plain);
 
@@ -156,7 +160,7 @@ async function handleSnapshotForm(message: { tabId: number; selector: string; mo
     if (html) {
       snapshot = html + '\n\n===== ARIA SNAPSHOT of the same container (with [ref=eN] markers) =====\n' + ref;
     } else {
-      broadcast({ type: 'fillProgress', status: 'Could not read raw HTML; falling back to ARIA snapshot.' });
+      broadcast({ type: 'fillProgress', status: t('background.htmlFallback') });
     }
   }
 
@@ -188,7 +192,7 @@ function streamTo(phase: 'detect' | 'generate') {
 // 阶段 1：AI 识别表单字段 + 表单名（复用快照，无需再次连接页面）
 async function handleAnalyzeForm(message: { snapshot: string; mode: CaptureMode }) {
   const aiConfig = await requireAIConfig();
-  progress('Analyzing form fields (streaming)...', 1, 1);
+  progress(t('background.analyzeStream'), 1, 1);
   const { fields, formName } = await detectFields(aiConfig, message.snapshot, message.mode, streamTo('detect'));
   broadcast({ type: 'formAnalyzed', fields, formName });
 }
@@ -196,16 +200,16 @@ async function handleAnalyzeForm(message: { snapshot: string; mode: CaptureMode 
 // 阶段 1（本地版）：在页面内用 content script 解析所选容器的 DOM，识别表单字段——不调用 AI、无需 API Key。
 // 适合标准 HTML 控件；自定义/JS 组件可能识别不全，此时用户可改用 AI 分析或手动增删字段。
 async function handleLocalAnalyzeForm(message: { tabId: number; selector: string }) {
-  progress('Analyzing form fields locally (no AI)...', 1, 1);
+  progress(t('background.analyzeLocal'), 1, 1);
   const res = await sendToTab<{ formName?: string; fields?: DetectedField[]; error?: string }>(
     message.tabId, { type: 'localAnalyze', selector: message.selector });
   if (!res || res.error || !Array.isArray(res.fields)) {
-    throw new Error(`本地分析失败：${res?.error ?? '无结果'}（若刚更新扩展，请刷新目标页面）`);
+    throw new Error(t('background.errLocalAnalyze', { detail: res?.error ?? t('background.errNoResult') }));
   }
   if (!res.fields.length) {
-    throw new Error('本地分析未识别到任何表单字段。该表单可能是自定义/JS 组件——可改用“Analyze form fields (AI)”。');
+    throw new Error(t('background.errLocalNoFields'));
   }
-  broadcast({ type: 'formAnalyzed', fields: res.fields, formName: res.formName || '本地识别表单' });
+  broadcast({ type: 'formAnalyzed', fields: res.fields, formName: res.formName || t('background.localFormName') });
 }
 
 // 阶段 2：根据用户确认的字段生成动作 JSON（不执行），随后在页面上自动校验定位：
@@ -228,7 +232,7 @@ async function handleGenerateFill(message: {
     profileData = profile?.fields;
   }
 
-  progress('Generating action JSON (streaming)...', 1, 1);
+  progress(t('background.generateStream'), 1, 1);
   // callAI 已校验非空并归一化为 { actions: [...] }，为空/无效会抛错（→ opError）
   const script = await callAI(aiConfig, snapshot, instruction, profileData, fields, mode, streamTo('generate'));
 
@@ -237,7 +241,7 @@ async function handleGenerateFill(message: {
   let issues: ValidationIssue[] = [];
   if (actions && tabId != null) {
     try {
-      progress('Validating locators...', 1, 1);
+      progress(t('background.validating'), 1, 1);
       const r = await validateAndFix(tabId, scopeSelector, actions, { aiConfig, snapshot, mode });
       actions = r.actions;
       issues = r.issues;
@@ -259,17 +263,17 @@ async function handleLocalGenerateFill(message: {
   scopeSelector: string;
 }) {
   const { fields, tabId, scopeSelector } = message;
-  progress('Generating fill code locally (no AI)...', 1, 1);
+  progress(t('background.generateLocal'), 1, 1);
   const res = await sendToTab<{ actions?: FillAction[]; error?: string }>(
     tabId, { type: 'localGenerate', selector: scopeSelector, fields });
   if (!res || res.error || !Array.isArray(res.actions) || !res.actions.length) {
-    throw new Error(`本地生成失败：${res?.error ?? '未能为所选区域生成任何动作'}。可改用 AI 生成。`);
+    throw new Error(t('background.errLocalGenerate', { detail: res?.error ?? t('background.errNoActions') }));
   }
 
   let actions = res.actions;
   let issues: ValidationIssue[] = [];
   try {
-    progress('Validating locators...', 1, 1);
+    progress(t('background.validating'), 1, 1);
     const r = await validateAndFix(tabId, scopeSelector, actions, null); // repairCtx=null → 不调 AI
     actions = r.actions;
     issues = r.issues;
@@ -281,7 +285,7 @@ async function handleLocalGenerateFill(message: {
 // 手动校验动作 JSON（count 检查 + ref 固化；不调 AI）
 async function handleValidateActions(message: { tabId: number; actionsJson: string; scopeSelector?: string }) {
   const actions = parseActionList(message.actionsJson);
-  if (!actions) throw new Error('动作 JSON 无效，无法校验。');
+  if (!actions) throw new Error(t('background.errInvalidActionsJson'));
   progress('Validating locators...', 1, 1);
   const { actions: fixed, issues } = await validateAndFix(message.tabId, message.scopeSelector ?? '', actions, null);
   broadcast({ type: 'validationResult', script: JSON.stringify({ actions: fixed }), issues });
@@ -295,8 +299,8 @@ async function handleExecuteFill(message: { tabId: number; code: string; scopeSe
 
 /** 在指定标签页执行一段 Playwright 代码（content script 内逐条执行） */
 async function runOnTab(tabId: number, code: string, scopeSelector?: string): Promise<void> {
-  progress('Executing...', 1, 1);
-  await runCode(tabId, code, (i, n, label) => progress(`Step ${i}/${n}: ${label}`), scopeSelector);
+  progress(t('background.executing'), 1, 1);
+  await runCode(tabId, code, (i, n, label) => progress(t('background.progressStep', { step: i, total: n, label })), scopeSelector);
 }
 
 // ── 执行器：定位链 → playwright selector → content 内执行 ────────────────────
@@ -308,7 +312,7 @@ type StepCallback = (index: number, total: number, label: string) => void;
 
 async function runCode(tabId: number, code: string, onStep?: StepCallback, scopeSelector?: string): Promise<void> {
   const stmts = splitStatements(code);
-  if (stmts.length === 0) throw new Error('No executable code.');
+  if (stmts.length === 0) throw new Error(t('background.errNoExecCode'));
   for (let i = 0; i < stmts.length; i++) {
     const stmt = stmts[i];
     onStep?.(i + 1, stmts.length, truncate(stmt, 60));
@@ -732,7 +736,7 @@ async function validateActionList(
     } catch (e: any) {
       issues.push({
         index: i, label, locator: describeLocator(a), count: -1, severity: 'error',
-        message: `定位表达式无法解析：${String(e?.message ?? e).slice(0, 120)}`,
+        message: t('background.validation.parseError', { detail: String(e?.message ?? e).slice(0, 120) }),
       });
       continue;
     }
@@ -748,19 +752,19 @@ async function validateActionList(
         if (pageCount > 1) {
           issues.push({
             index: i, label, locator: describeLocator(a), count: pageCount, severity: 'error',
-            message: `容器内 0 命中，页面级命中 ${pageCount} 个（弹层元素？需收窄为唯一定位）`,
+            message: t('background.validation.pageHits', { count: pageCount }),
           });
           continue;
         }
       }
       issues.push({
         index: i, label, locator: describeLocator(a), count, severity: 'warn',
-        message: '定位不到元素（可能是动态渲染，也可能定位有误）',
+        message: t('background.validation.notFound'),
       });
     } else {
       issues.push({
         index: i, label, locator: describeLocator(a), count, severity: 'error',
-        message: `命中 ${count} 个元素（严格模式下执行会失败），需收窄为唯一定位`,
+        message: t('background.validation.multiple', { count }),
       });
     }
   }
@@ -812,14 +816,14 @@ async function validateAndFix(
     }
     issue.fixed = true;
     issue.fixedBy = 'ref';
-    issue.message += '（已自动固化为语义定位）';
+    issue.message += t('background.validation.fixedSemantic');
   }
 
   // ③ AI 修复（仅 error 且未修复；一轮）
   const remaining = issues.filter(i => i.severity === 'error' && !i.fixed);
   if (remaining.length && repairCtx) {
     try {
-      progress(`Repairing ${remaining.length} locator(s) with AI...`, 1, 1);
+      progress(t('background.repairingAi', { count: remaining.length }), 1, 1);
       const repairs = await repairActions(
         repairCtx.aiConfig, repairCtx.snapshot, repairCtx.mode,
         remaining.map(i => ({ index: i.index, action: actions[i.index], problem: i.message })),
@@ -840,10 +844,10 @@ async function validateAndFix(
           if (!again) {
             i.fixed = true;
             i.fixedBy = 'ai';
-            i.message += '（已由 AI 修复并复检通过）';
+            i.message += t('background.validation.aiFixed');
           } else {
             i.count = again.count;
-            i.message = `AI 修复后仍未通过：${again.message}`;
+            i.message = t('background.validation.aiStillFailed', { detail: again.message });
           }
         }
       }
@@ -888,8 +892,8 @@ function matchesUrl(pattern: string, url: string): boolean {
  */
 async function rebuildMenus(url: string): Promise<void> {
   await chrome.contextMenus.removeAll();
-  chrome.contextMenus.create({ id: 'aifill-parent', title: 'AI Form Filler', contexts: ['all'] });
-  chrome.contextMenus.create({ id: 'select-dom', parentId: 'aifill-parent', title: '🎯 Pick DOM mode (auto-fill on cache hit)', contexts: ['all'] });
+  chrome.contextMenus.create({ id: 'aifill-parent', title: t('background.menuTitle'), contexts: ['all'] });
+  chrome.contextMenus.create({ id: 'select-dom', parentId: 'aifill-parent', title: t('background.menuPickDom'), contexts: ['all'] });
   // 「填充」需要可执行代码；「调试」对任何匹配当前 URL 的缓存项都可用（即便还没代码）
   const matched = (await readFormCache()).filter(e => matchesUrl(e.urlPattern, url));
   if (matched.length) {
@@ -900,20 +904,20 @@ async function rebuildMenus(url: string): Promise<void> {
       chrome.contextMenus.create({
         id: formNode,
         parentId: 'aifill-parent',
-        title: `📝 ${e.formName}${hasCode ? '' : ' (no code yet)'}`,
+        title: hasCode ? t('background.menuForm', { name: e.formName }) : t('background.menuFormNoCode', { name: e.formName }),
         contexts: ['all'],
       });
       chrome.contextMenus.create({
         id: `fill:${e.id}`,
         parentId: formNode,
-        title: hasCode ? '⚡ 填充 Fill' : '⚡ 填充 Fill (no code — generate first)',
+        title: hasCode ? t('background.menuFill') : t('background.menuFillNoCode'),
         enabled: hasCode,
         contexts: ['all'],
       });
       chrome.contextMenus.create({
         id: `debug:${e.id}`,
         parentId: formNode,
-        title: '🐞 调试 Debug (load into side panel)',
+        title: t('background.menuDebug'),
         contexts: ['all'],
       });
     }
@@ -931,7 +935,9 @@ chrome.runtime.onInstalled.addListener(() => { refreshMenusForActive(); });
 chrome.runtime.onStartup?.addListener(() => { refreshMenusForActive(); });
 chrome.tabs.onActivated.addListener(() => { refreshMenusForActive(); });
 chrome.tabs.onUpdated.addListener((_id, info) => { if (info.status === 'complete') refreshMenusForActive(); });
-chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes.formCache) refreshMenusForActive(); });
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && (changes.formCache || changes.uiLocale)) refreshMenusForActive();
+});
 // 模块加载时也刷新一次
 refreshMenusForActive();
 
@@ -977,7 +983,7 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
 async function handleContextSelected(tabId: number, selector: string): Promise<void> {
   try {
     await withLock(async () => {
-      progress('Reading the selected region...', 1, 1);
+      progress(t('background.readingRegion'), 1, 1);
       const { plain, ref } = await captureSnapshot(tabId, selector);
       const domHash = getFingerprint(plain);
       const tab = await chrome.tabs.get(tabId);
@@ -985,9 +991,9 @@ async function handleContextSelected(tabId: number, selector: string): Promise<v
       const entry = (await readFormCache()).find(e => matchesUrl(e.urlPattern, url) && e.domHash === domHash);
       if (entry?.code) {
         // 命中且有可执行代码：直接自动填充（rebase 到刚选中的容器内）
-        await runCode(tabId, entry.code, (i, n, l) => progress(`Step ${i}/${n}: ${l}`), selector);
+          await runCode(tabId, entry.code, (i, n, l) => progress(t('background.progressStep', { step: i, total: n, label: l }), selector));
         broadcast({ type: 'fillComplete', success: true });
-        toastTab(tabId, `✓ 已填充：${entry.formName}`, 'success');
+        toastTab(tabId, t('background.fillSuccess', { name: entry.formName }), 'success');
       } else {
         // 未命中，或命中但无代码：把所选区域交给侧边栏，进入分析流程
         // （侧边栏已在右键手势内打开；用 storage 暂存 + 广播双保险，规避打开竞态）
@@ -1011,18 +1017,18 @@ async function handleContextSelected(tabId: number, selector: string): Promise<v
 
 async function fillFromCache(tabId: number, entry: FormCacheEntry): Promise<void> {
   if (!entry.code) {
-    broadcast({ type: 'opError', error: `"${entry.formName}" has no executable code — generate it in the side panel.` });
-    toastTab(tabId, `“${entry.formName}” 还没有可执行代码，请先在侧边栏生成。`, 'error');
+    broadcast({ type: 'opError', error: t('background.fillNoCode', { name: entry.formName }) });
+    toastTab(tabId, t('background.fillNoCodeToast', { name: entry.formName }), 'error');
     return;
   }
   try {
     await withLock(() => runOnTab(tabId, entry.code!, entry.selector));
     broadcast({ type: 'fillComplete', success: true });
-    toastTab(tabId, `✓ 已填充：${entry.formName}`, 'success');
+    toastTab(tabId, t('background.fillSuccess', { name: entry.formName }), 'success');
   } catch (e: any) {
     const err = e?.message ?? String(e);
     broadcast({ type: 'opError', error: err });
-    toastTab(tabId, `❌ 填充失败：${err}`, 'error');
+    toastTab(tabId, t('background.fillFailed', { error: err }), 'error');
   }
 }
 

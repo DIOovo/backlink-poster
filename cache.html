@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Form Filler — Cache Manager</title>
+  <title data-i18n="cache.title">AI Form Filler — Cache Manager</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -61,13 +61,13 @@
 </head>
 <body>
   <div class="topbar">
-    <h1>✦ Form Cache Manager</h1>
+    <h1 data-i18n="cache.heading">✦ Form Cache Manager</h1>
     <span class="count" id="count"></span>
   </div>
   <div class="layout">
     <div class="list" id="list"></div>
     <div class="detail" id="detail">
-      <div class="placeholder" id="placeholder">← Select a cache entry on the left to view the fields JSON and code</div>
+      <div class="placeholder" id="placeholder" data-i18n="cache.placeholder">← Select a cache entry on the left to view the fields JSON and code</div>
     </div>
   </div>
   <script type="module" src="/src/cache.ts"></script>

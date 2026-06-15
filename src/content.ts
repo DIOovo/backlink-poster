@@ -1,11 +1,23 @@
 /**
  * AI Form Filler — Content Script
  * Handles element hover-selection on the page.
- * Plain JS (no imports) so it works as a standard content script.
  */
+
+import { initI18n, t, onLocaleChange } from './i18n';
 
 (function () {
   'use strict';
+
+  let lastQuickMenuForms: Array<{ id: string; formName: string }> | null = null;
+  let lastQuickMenuPickDom = false;
+
+  function refreshContentUi() {
+    const banner = document.getElementById('__aifill_rec_banner__');
+    if (banner) banner.textContent = t('content.recording');
+    const gate = document.querySelector('[data-aifill-fill-gate]') as HTMLElement | null;
+    if (gate) gate.textContent = t('content.fillGate');
+    if (lastQuickMenuForms !== null) showQuickMenu(lastQuickMenuForms, lastQuickMenuPickDom);
+  }
 
   let isSelecting = false;
   let hoveredEl = null;
@@ -684,8 +696,8 @@
       }
       // 自定义下拉 / picker：点击触发打开，再按 role=option 点选第一个选项（执行器自动回退页面级弹层）
       return [
-        { type: 'click', target, label: label + '（打开下拉）' },
-        { type: 'click', target: { by: 'role', role: 'option', value: '' }, label: label + '（选择首项）' },
+        { type: 'click', target, label: label + t('content.openDropdown') },
+        { type: 'click', target: { by: 'role', role: 'option', value: '' }, label: label + t('content.selectFirst') },
       ];
     }
     if (cat === 'range') return [{ type: 'fill', target, value: (el.getAttribute('value') || '50'), label }];
@@ -730,6 +742,8 @@
   }
 
   function showQuickMenu(forms, pickDom) {
+    lastQuickMenuForms = forms;
+    lastQuickMenuPickDom = !!pickDom;
     removeQuickMenu();
     const menu = document.createElement('div');
     menu.id = '__aifill_quickmenu__';
@@ -741,7 +755,7 @@
     ].join(';');
 
     const title = document.createElement('div');
-    title.textContent = 'AI Form Filler';
+    title.textContent = t('content.quickMenuTitle');
     title.style.cssText = 'font-weight:600;font-size:11px;color:#6b7280;padding:4px 8px 6px;letter-spacing:.02em;';
     menu.appendChild(title);
 
@@ -757,14 +771,14 @@
 
     if (forms && forms.length) {
       for (const f of forms) {
-        menu.appendChild(makeItem('📝 Fill: ' + f.formName, () => {
+        menu.appendChild(makeItem(t('content.fillItem', { name: f.formName }), () => {
           removeQuickMenu();
           chrome.runtime.sendMessage({ type: 'quickMenuFill', id: f.id });
         }));
       }
     } else {
       const empty = document.createElement('div');
-      empty.textContent = 'No saved forms match this page';
+      empty.textContent = t('content.noForms');
       empty.style.cssText = 'padding:8px 10px;color:#9ca3af;font-style:italic;';
       menu.appendChild(empty);
     }
@@ -773,7 +787,7 @@
       const sep = document.createElement('div');
       sep.style.cssText = 'height:1px;background:#f0f0f0;margin:4px 2px;';
       menu.appendChild(sep);
-      menu.appendChild(makeItem('🎯 Pick DOM mode (auto-fill on cache hit)', () => {
+      menu.appendChild(makeItem(t('content.pickDom'), () => {
         removeQuickMenu();
         chrome.runtime.sendMessage({ type: 'quickMenuPickDom' });
       }));
@@ -1013,7 +1027,7 @@
         'padding:8px 14px', 'border-radius:20px', 'z-index:2147483647',
         'box-shadow:0 2px 10px rgba(0,0,0,0.25)', 'pointer-events:none',
       ].join(';');
-      b.textContent = '● Recording… operate the page; press ESC to stop';
+      b.textContent = t('content.recording');
       document.documentElement.appendChild(b);
     }
   }
@@ -1745,11 +1759,12 @@
   function armFillGate(sendResponse) {
     dismissFillGate(); // 防重复
     const el = document.createElement('div');
+    el.setAttribute('data-aifill-fill-gate', '1');
     el.setAttribute('style',
       'position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.45);' +
       'display:flex;align-items:center;justify-content:center;cursor:pointer;' +
       'font:600 18px/1.6 system-ui,sans-serif;color:#fff;text-align:center;user-select:none;');
-    el.textContent = '👆 Click anywhere to start auto-filling';
+    el.textContent = t('content.fillGate');
     let done = false;
     const finish = (ok) => {
       if (done) return;
@@ -1875,4 +1890,7 @@
       return true;
     }
   });
+
+  initI18n().then(() => refreshContentUi());
+  onLocaleChange(refreshContentUi);
 })();

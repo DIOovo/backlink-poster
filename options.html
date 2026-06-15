@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Form Filler — Settings</title>
+  <title data-i18n="options.title">AI Form Filler — Settings</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -174,41 +174,55 @@
 </head>
 <body>
   <div class="container">
-    <h1>✦ AI Form Filler Settings</h1>
+    <h1 data-i18n="options.heading">✦ AI Form Filler Settings</h1>
+
+    <!-- Language -->
+    <div class="card">
+      <div class="card-header" data-i18n="options.language">Language</div>
+      <div class="card-body">
+        <div class="field">
+          <label data-i18n="options.language">Language</label>
+          <select id="ui-locale">
+            <option value="en" data-i18n="options.languageEn">English</option>
+            <option value="zh-CN" data-i18n="options.languageZh">中文</option>
+          </select>
+        </div>
+      </div>
+    </div>
 
     <!-- AI Config -->
     <div class="card">
-      <div class="card-header">AI Configuration</div>
+      <div class="card-header" data-i18n="options.aiConfig">AI Configuration</div>
       <div class="card-body">
         <div class="row">
           <div class="field">
-            <label>AI Provider</label>
+            <label data-i18n="options.aiProvider">AI Provider</label>
             <select id="ai-provider">
-              <option value="anthropic">Anthropic (Claude)</option>
-              <option value="openai">OpenAI (GPT)</option>
-              <option value="custom">Custom (OpenAI-compatible)</option>
-              <option value="custom-anthropic">Custom (Claude-compatible)</option>
+              <option value="anthropic" data-i18n="options.providerAnthropic">Anthropic (Claude)</option>
+              <option value="openai" data-i18n="options.providerOpenai">OpenAI (GPT)</option>
+              <option value="custom" data-i18n="options.providerCustom">Custom (OpenAI-compatible)</option>
+              <option value="custom-anthropic" data-i18n="options.providerCustomAnthropic">Custom (Claude-compatible)</option>
             </select>
           </div>
           <div class="field" id="model-field">
-            <label>Model ID</label>
-            <input type="text" id="ai-model" list="model-presets" placeholder="e.g. gpt-4o" autocomplete="off" />
+            <label data-i18n="options.modelId">Model ID</label>
+            <input type="text" id="ai-model" list="model-presets" data-i18n-placeholder="options.modelPlaceholder" placeholder="e.g. gpt-4o" autocomplete="off" />
             <datalist id="model-presets"></datalist>
-            <div class="hint">Type any model ID, or pick one from the suggestions</div>
+            <div class="hint" data-i18n="options.modelHint">Type any model ID, or pick one from the suggestions</div>
           </div>
         </div>
         <div class="field">
-          <label>Base URL</label>
-          <input type="text" id="base-url" placeholder="Leave empty to use the default" autocomplete="off" />
+          <label data-i18n="options.baseUrl">Base URL</label>
+          <input type="text" id="base-url" data-i18n-placeholder="options.baseUrlPlaceholder" placeholder="Leave empty to use the default" autocomplete="off" />
           <div class="hint" id="base-url-hint">Default: https://api.openai.com/v1 (for a proxy / local model, enter it here — no /chat/completions suffix needed)</div>
         </div>
         <div class="field">
-          <label>API Key</label>
-          <input type="password" id="api-key" placeholder="sk-..." autocomplete="off" />
-          <div class="hint">The key is stored only in local browser storage and is never uploaded</div>
+          <label data-i18n="options.apiKey">API Key</label>
+          <input type="password" id="api-key" data-i18n-placeholder="options.apiKeyPlaceholder" placeholder="sk-..." autocomplete="off" />
+          <div class="hint" data-i18n="options.apiKeyHint">The key is stored only in local browser storage and is never uploaded</div>
         </div>
         <div class="save-row">
-          <button class="btn btn-primary" id="btn-save-ai">Save AI config</button>
+          <button class="btn btn-primary" id="btn-save-ai" data-i18n="options.saveAiConfig">Save AI config</button>
           <span class="save-msg" id="ai-save-msg"></span>
         </div>
       </div>
@@ -216,74 +230,74 @@
 
     <!-- Profiles -->
     <div class="card">
-      <div class="card-header">Fill Profiles</div>
+      <div class="card-header" data-i18n="options.profiles">Fill Profiles</div>
       <div class="card-body">
         <ul class="profile-list" id="profile-list">
-          <li style="font-size:12px;color:var(--muted);padding:4px 0;">No profiles yet</li>
+          <li style="font-size:12px;color:var(--muted);padding:4px 0;" data-i18n="options.noProfiles">No profiles yet</li>
         </ul>
-        <button class="btn btn-secondary" id="btn-add-profile">+ New profile</button>
+        <button class="btn btn-secondary" id="btn-add-profile" data-i18n="options.newProfile">+ New profile</button>
 
         <!-- Profile editor (shown inline) -->
         <div class="profile-editor" id="profile-editor">
-          <h3 id="editor-title">New profile</h3>
+          <h3 id="editor-title" data-i18n="options.newProfileTitle">New profile</h3>
           <div class="field">
-            <label>Profile name</label>
-            <input type="text" id="profile-name-input" placeholder="e.g. Test User A" />
+            <label data-i18n="options.profileName">Profile name</label>
+            <input type="text" id="profile-name-input" data-i18n-placeholder="options.profileNamePlaceholder" placeholder="e.g. Test User A" />
           </div>
           <div class="profile-fields">
             <div class="profile-field">
-              <label>Name (name)</label>
+              <label data-i18n="options.fieldName">Name (name)</label>
               <input type="text" data-key="name" placeholder="John Doe" />
             </div>
             <div class="profile-field">
-              <label>Email (email)</label>
+              <label data-i18n="options.fieldEmail">Email (email)</label>
               <input type="text" data-key="email" placeholder="test@example.com" />
             </div>
             <div class="profile-field">
-              <label>Phone (phone)</label>
+              <label data-i18n="options.fieldPhone">Phone (phone)</label>
               <input type="text" data-key="phone" placeholder="13800138000" />
             </div>
             <div class="profile-field">
-              <label>Company (company)</label>
+              <label data-i18n="options.fieldCompany">Company (company)</label>
               <input type="text" data-key="company" placeholder="Acme Corp" />
             </div>
             <div class="profile-field">
-              <label>Address (address)</label>
+              <label data-i18n="options.fieldAddress">Address (address)</label>
               <input type="text" data-key="address" placeholder="123 Main St..." />
             </div>
             <div class="profile-field">
-              <label>City (city)</label>
+              <label data-i18n="options.fieldCity">City (city)</label>
               <input type="text" data-key="city" placeholder="New York" />
             </div>
             <div class="profile-field">
-              <label>Zipcode (zipcode)</label>
+              <label data-i18n="options.fieldZipcode">Zipcode (zipcode)</label>
               <input type="text" data-key="zipcode" placeholder="100000" />
             </div>
             <div class="profile-field">
-              <label>Country (country)</label>
+              <label data-i18n="options.fieldCountry">Country (country)</label>
               <input type="text" data-key="country" placeholder="China" />
             </div>
             <div class="profile-field">
-              <label>Username (username)</label>
+              <label data-i18n="options.fieldUsername">Username (username)</label>
               <input type="text" data-key="username" placeholder="testuser" />
             </div>
             <div class="profile-field">
-              <label>Password (password)</label>
+              <label data-i18n="options.fieldPassword">Password (password)</label>
               <input type="text" data-key="password" placeholder="Test@1234" />
             </div>
           </div>
 
           <!-- Custom fields -->
           <div class="custom-fields">
-            <div style="font-size:12px;font-weight:500;margin-bottom:8px;">Custom fields</div>
+            <div style="font-size:12px;font-weight:500;margin-bottom:8px;" data-i18n="options.customFields">Custom fields</div>
             <div id="custom-fields-container"></div>
-            <button class="btn btn-secondary btn-sm" id="btn-add-custom-field">+ Add field</button>
+            <button class="btn btn-secondary btn-sm" id="btn-add-custom-field" data-i18n="options.addField">+ Add field</button>
           </div>
 
           <div class="profile-actions" style="margin-top:14px;">
-            <button class="btn btn-primary" id="btn-save-profile">Save profile</button>
-            <button class="btn btn-secondary" id="btn-cancel-profile">Cancel</button>
-            <button class="btn btn-danger" id="btn-delete-profile" style="display:none;">Delete</button>
+            <button class="btn btn-primary" id="btn-save-profile" data-i18n="options.saveProfile">Save profile</button>
+            <button class="btn btn-secondary" id="btn-cancel-profile" data-i18n="common.cancel">Cancel</button>
+            <button class="btn btn-danger" id="btn-delete-profile" style="display:none;" data-i18n="options.deleteProfile">Delete</button>
           </div>
         </div>
       </div>

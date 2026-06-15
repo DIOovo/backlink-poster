@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Form Filler</title>
+  <title data-i18n="sidepanel.title">AI Form Filler</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -234,31 +234,31 @@
 </head>
 <body>
   <div class="header">
-    <h1><span>✦</span> AI Form Filler</h1>
+    <h1><span>✦</span> <span data-i18n="sidepanel.title">AI Form Filler</span></h1>
     <div class="header-actions">
-      <button class="icon-btn" id="btn-cache" title="Cache manager">📂</button>
-      <button class="icon-btn" id="btn-options" title="Settings">⚙</button>
+      <button class="icon-btn" id="btn-cache" data-i18n-title="sidepanel.cacheManager" title="Cache manager">📂</button>
+      <button class="icon-btn" id="btn-options" data-i18n-title="sidepanel.settings" title="Settings">⚙</button>
     </div>
   </div>
 
-  <div class="url-bar" id="current-url">Loading...</div>
+  <div class="url-bar" id="current-url" data-i18n="sidepanel.loading">Loading...</div>
 
   <div class="no-config-banner" id="no-config-banner">
-    AI not configured. Please <a id="link-options">open Settings</a> and enter your API Key.
+    <span data-i18n-html="sidepanel.noConfig" data-i18n-link-key="sidepanel.openSettings">AI not configured. Please <a id="link-options" data-i18n-link>open Settings</a> and enter your API Key.</span>
   </div>
 
   <!-- ① Select -->
   <div class="section">
-    <div class="section-header">① Select form container</div>
+    <div class="section-header" data-i18n="sidepanel.step1Title">① Select form container</div>
     <div class="section-body">
-      <div class="mode-hint" id="mode-hint">Capture mode: <b>Real DOM HTML</b> — the selected region’s cleaned DOM is used (real id/name/type/placeholder attributes).</div>
+      <div class="mode-hint" id="mode-hint"></div>
       <div class="row-2">
-        <button class="btn btn-select" id="btn-select"><span>🎯</span> Click to pick a page element</button>
-        <button class="btn btn-primary" id="btn-oneclick-local" title="Pick an element, then auto run local analyze → local generate (or load cache)">⚡ One-click local fill</button>
+        <button class="btn btn-select" id="btn-select"><span>🎯</span> <span data-i18n="sidepanel.btnPick">Click to pick a page element</span></button>
+        <button class="btn btn-primary" id="btn-oneclick-local" data-i18n-title="sidepanel.btnOneClickTitle" title="Pick an element, then auto run local analyze → local generate (or load cache)"><span data-i18n="sidepanel.btnOneClick">⚡ One-click local fill</span></button>
       </div>
       <div class="selected-info hidden" id="selected-info">
         <code class="selected-selector" id="selected-selector"></code>
-        <button class="btn-clear" id="btn-clear" title="Re-select">✕</button>
+        <button class="btn-clear" id="btn-clear" data-i18n-title="sidepanel.reselect" title="Re-select">✕</button>
       </div>
     </div>
   </div>
@@ -266,71 +266,71 @@
   <!-- ①.5 AI 快照预览 -->
   <div class="section" id="snapshot-section" style="display:none;">
     <div class="section-header collapsible-header open" id="snapshot-header">
-      <span class="caret">▸</span> <span id="snapshot-header-label">Captured page snapshot (aria snapshot)</span>
+      <span class="caret">▸</span> <span id="snapshot-header-label" data-i18n="sidepanel.snapshotTitle">Captured page snapshot (aria snapshot)</span>
     </div>
     <div class="section-body collapsible-body" id="snapshot-body">
-      <div class="fields-hint">This is the page structure sent to the AI — confirm it includes the target form:</div>
+      <div class="fields-hint" data-i18n="sidepanel.snapshotHint">This is the page structure sent to the AI — confirm it includes the target form:</div>
       <pre class="snapshot-view" id="snapshot-view"></pre>
     </div>
   </div>
 
   <!-- ② Analyze -->
   <div class="section" id="config-section">
-    <div class="section-header">② Analyze form</div>
+    <div class="section-header" data-i18n="sidepanel.step2Title">② Analyze form</div>
     <div class="section-body">
       <div class="row-2">
-        <button class="btn btn-ghost" id="btn-fill-local" disabled>🧩 Local analyze</button>
-        <button class="btn btn-primary" id="btn-fill" disabled>🤖 AI analyze</button>
+        <button class="btn btn-ghost" id="btn-fill-local" disabled><span data-i18n="sidepanel.btnLocalAnalyze">🧩 Local analyze</span></button>
+        <button class="btn btn-primary" id="btn-fill" disabled><span data-i18n="sidepanel.btnAiAnalyze">🤖 AI analyze</span></button>
       </div>
-      <div class="mode-hint">Local = parse the DOM in your browser (no API key, no tokens; best for standard HTML controls). AI = let the model read the snapshot (may detect more on custom/JS widgets).</div>
+      <div class="mode-hint" data-i18n="sidepanel.analyzeHint">Local = parse the DOM in your browser (no API key, no tokens; best for standard HTML controls). AI = let the model read the snapshot (may detect more on custom/JS widgets).</div>
     </div>
   </div>
 
   <!-- ③ Confirm fields + meta -->
   <div class="section" id="fields-section" style="display:none;">
     <div class="section-header collapsible-header open" id="fields-header">
-      <span class="caret">▸</span> ③ Confirm form fields
+      <span class="caret">▸</span> <span data-i18n="sidepanel.step3Title">③ Confirm form fields</span>
     </div>
     <div class="section-body collapsible-body" id="fields-body">
-      <div class="cache-hit" id="cache-hit">⚡ Cache hit: this form's fields are loaded — confirm or edit directly</div>
-      <div class="fields-hint">Review the AI-detected fields; you can edit, delete or add:</div>
+      <div class="cache-hit" id="cache-hit" data-i18n="sidepanel.cacheHit">⚡ Cache hit: this form's fields are loaded — confirm or edit directly</div>
+      <div class="fields-hint" data-i18n="sidepanel.fieldsHint">Review the AI-detected fields; you can edit, delete or add:</div>
       <div id="fields-list"></div>
-      <button class="btn btn-ghost" id="btn-add-field">+ Add field</button>
+      <button class="btn btn-ghost" id="btn-add-field" data-i18n="sidepanel.addField">+ Add field</button>
 
       <div class="meta-grid">
         <div class="meta-field">
-          <label>Form name (required &amp; must be unique)</label>
-          <input type="text" id="form-name-input" placeholder="e.g. Signup form" style="font-family:inherit;" />
+          <label data-i18n="sidepanel.formName">Form name (required &amp; must be unique)</label>
+          <input type="text" id="form-name-input" data-i18n-placeholder="sidepanel.formNamePlaceholder" placeholder="e.g. Signup form" style="font-family:inherit;" />
         </div>
         <div class="meta-field">
-          <label>Match URL (regex allowed)</label>
-          <input type="text" id="url-pattern-input" placeholder="e.g. ^https://example\.com/signup" />
+          <label data-i18n="sidepanel.matchUrl">Match URL (regex allowed)</label>
+          <input type="text" id="url-pattern-input" data-i18n-placeholder="sidepanel.matchUrlPlaceholder" placeholder="e.g. ^https://example\.com/signup" />
         </div>
         <div class="meta-field">
-          <label>DOM hash (auto)</label>
+          <label data-i18n="sidepanel.domHash">DOM hash (auto)</label>
           <input type="text" id="dom-hash-view" class="readonly" readonly />
         </div>
       </div>
 
-      <button class="btn btn-primary" id="btn-confirm-fields" style="margin-top:10px;">✓ Confirm & save fields</button>
+      <button class="btn btn-primary" id="btn-confirm-fields" style="margin-top:10px;" data-i18n="sidepanel.confirmFields">✓ Confirm & save fields</button>
     </div>
   </div>
 
   <!-- ④ 填充代码 / 动作 JSON（按钮常驻，JSON 默认折叠） -->
   <div class="section" id="actions-section" style="display:none;">
-    <div class="section-header">④ Fill code</div>
+    <div class="section-header" data-i18n="sidepanel.step4Title">④ Fill code</div>
     <div class="section-body">
       <div class="field">
-        <label>Profile (optional — preset values the AI uses to fill)</label>
-        <select id="profile-select"><option value="">No profile</option></select>
+        <label data-i18n="sidepanel.profile">Profile (optional — preset values the AI uses to fill)</label>
+        <select id="profile-select"><option value="" data-i18n="sidepanel.noProfile">No profile</option></select>
       </div>
       <div class="row-2">
-        <button class="btn btn-ghost" id="btn-regen-local">🧩 Local generate</button>
-        <button class="btn btn-primary" id="btn-regen">🤖 AI generate fill code</button>
+        <button class="btn btn-ghost" id="btn-regen-local" data-i18n="sidepanel.btnLocalGenerate">🧩 Local generate</button>
+        <button class="btn btn-primary" id="btn-regen" data-i18n="sidepanel.btnAiGenerate">🤖 AI generate fill code</button>
       </div>
-      <div class="mode-hint">Local = build locators &amp; values from the DOM in your browser (no AI; values are sensible defaults that respect length rules). AI = generate via the model.</div>
+      <div class="mode-hint" data-i18n="sidepanel.generateHint">Local = build locators &amp; values from the DOM in your browser (no AI; values are sensible defaults that respect length rules). AI = generate via the model.</div>
       <div class="collapsible-header sub-toggle" id="actions-toggle">
-        <span class="caret" id="actions-caret">▸</span> Action JSON (editable)
+        <span class="caret" id="actions-caret">▸</span> <span data-i18n="sidepanel.actionJson">Action JSON (editable)</span>
       </div>
       <div class="collapsible-body collapsed" id="actions-body">
         <textarea class="json-area" id="actions-json" spellcheck="false"></textarea>
@@ -340,25 +340,25 @@
 
   <!-- ⑤ Playwright code -->
   <div class="section" id="code-section" style="display:none;">
-    <div class="section-header">⑤ Playwright code (editable / debuggable)</div>
+    <div class="section-header" data-i18n="sidepanel.step5Title">⑤ Playwright code (editable / debuggable)</div>
     <div class="section-body">
-      <div class="rec-hint">Hover over the code (while not editing) to reveal <b>⏺ Record</b> — click to record page actions and insert them at that line; press <b>ESC</b> or click <b>■</b> to stop.</div>
+      <div class="rec-hint" id="rec-hint"></div>
       <div class="code-editor" id="code-editor">
         <pre class="code-hl" id="code-hl" aria-hidden="true"></pre>
         <textarea class="code-area" id="code-text" spellcheck="false" wrap="off" autocomplete="off" autocapitalize="off"></textarea>
         <div class="rec-overlay" id="rec-overlay">
           <div class="rec-line" id="rec-line"></div>
-          <button class="rec-fab" id="rec-fab" title="Record page actions and insert here">⏺</button>
+          <button class="rec-fab" id="rec-fab" data-i18n-title="sidepanel.recFabTitle" title="Record page actions and insert here">⏺</button>
         </div>
       </div>
-      <div class="fields-hint" style="margin-top:6px;">Editing code syncs back to the Action JSON above; execution uses this code.</div>
+      <div class="fields-hint" style="margin-top:6px;" data-i18n="sidepanel.codeSyncHint">Editing code syncs back to the Action JSON above; execution uses this code.</div>
       <div class="issues-list" id="issues-list">
-        <div class="issues-title">Locator check report</div>
+        <div class="issues-title" data-i18n="sidepanel.issuesTitle">Locator check report</div>
         <div id="issues-rows"></div>
       </div>
       <div class="row-2" style="margin-top:8px;">
-        <button class="btn btn-ghost" id="btn-validate">🔎 Validate locators</button>
-        <button class="btn btn-primary" id="btn-execute">⚡ Confirm & fill the page</button>
+        <button class="btn btn-ghost" id="btn-validate" data-i18n="sidepanel.btnValidate">🔎 Validate locators</button>
+        <button class="btn btn-primary" id="btn-execute" data-i18n="sidepanel.btnExecute">⚡ Confirm & fill the page</button>
       </div>
     </div>
   </div>

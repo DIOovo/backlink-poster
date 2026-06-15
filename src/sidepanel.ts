@@ -8,8 +8,7 @@
  */
 
 import type { CaptureMode, DetectedField, FillAction, FillTarget, FormCacheEntry, ValidationIssue } from './utils/types';
-
-// ── State ─────────────────────────────────────────────────────────────────
+import { initI18n, applyI18n, t, onLocaleChange } from './i18n';
 
 type PanelState =
   | 'idle' | 'selecting' | 'selected'
@@ -102,6 +101,24 @@ const statusSpinner = $('status-spinner');
 const statusText = $('status-text');
 const stepsLog = $('steps-log');
 const streamBox = $('stream-box');
+const modeHintEl = $('mode-hint');
+const recHintEl = $('rec-hint');
+
+function refreshStaticUi() {
+  applyI18n();
+  modeHintEl.innerHTML = t('sidepanel.modeHint', { mode: `<b>${t('sidepanel.modeRealDom')}</b>` });
+  recHintEl.innerHTML = t('sidepanel.recHint', {
+    record: `<b>${t('sidepanel.recRecord')}</b>`,
+    esc: `<b>${t('sidepanel.recEsc')}</b>`,
+    stop: `<b>${t('sidepanel.recStop')}</b>`,
+  });
+  const noProfile = profileSelect.querySelector('option[value=""]');
+  if (noProfile) noProfile.textContent = t('sidepanel.noProfile');
+  updateRegenLabel();
+  setState(state);
+}
+
+onLocaleChange(refreshStaticUi);
 
 // ── Form cache (chrome.storage.local) ───────────────────────────────────────
 
@@ -322,9 +339,9 @@ function codeToActions(code: string): FillAction[] {
 
 function parseActionsJson(text: string): FillAction[] {
   let data: any;
-  try { data = JSON.parse(text); } catch { throw new Error('Invalid action JSON'); }
+  try { data = JSON.parse(text); } catch { throw new Error(t('sidepanel.errInvalidActionJson')); }
   const list = Array.isArray(data) ? data : data?.actions;
-  if (!Array.isArray(list) || !list.length) throw new Error('Action JSON has no actions array');
+  if (!Array.isArray(list) || !list.length) throw new Error(t('sidepanel.errNoActions'));
   return list as FillAction[];
 }
 function prettyActions(text: string): string {
@@ -338,15 +355,15 @@ function setState(s: PanelState) {
   state = s;
   btnSelect.classList.toggle('selecting', s === 'selecting');
   btnSelect.textContent = s === 'selecting'
-    ? '🖱 Click an element on the page… (ESC to cancel)'
-    : s === 'idle' ? '🎯 Click to pick a page element' : '🔄 Re-select';
+    ? t('sidepanel.picking')
+    : s === 'idle' ? t('sidepanel.btnPick') : t('sidepanel.btnReSelect');
   selectedInfo.classList.toggle('hidden', s === 'idle' || s === 'selecting');
 
   const busy = s === 'snapshotting' || s === 'analyzing' || s === 'generating' || s === 'filling';
 
   btnFill.disabled = !(s === 'selected' && !!detectedSnapshot);
   btnFill.classList.toggle('running', s === 'analyzing' || s === 'snapshotting');
-  btnFill.textContent = s === 'analyzing' ? '⏳ Analyzing...' : s === 'snapshotting' ? '⏳ Reading...' : '🔍 Analyze form fields (AI)';
+  btnFill.textContent = s === 'analyzing' ? t('sidepanel.analyzing') : s === 'snapshotting' ? t('sidepanel.reading') : t('sidepanel.btnAnalyzeAi');
 
   // 本地分析只需选区（无需 AI 快照、无需 API Key）
   btnFillLocal.disabled = !(s === 'selected' && !!selectedSelector);
@@ -357,7 +374,7 @@ function setState(s: PanelState) {
   btnRegen.disabled = s === 'generating' || s === 'filling';
   btnRegenLocal.disabled = s === 'generating' || s === 'filling';
   btnRegen.classList.toggle('running', s === 'generating');
-  if (s === 'generating') btnRegen.textContent = '⏳ Generating...';
+  if (s === 'generating') btnRegen.textContent = t('sidepanel.generating');
   else updateRegenLabel();
 
   const locked = s === 'filling';
@@ -365,7 +382,7 @@ function setState(s: PanelState) {
   codeTextEl.readOnly = locked;
   btnExecute.disabled = locked;
   btnExecute.classList.toggle('running', locked);
-  btnExecute.textContent = locked ? '⏳ Filling...' : '⚡ Confirm & fill the page';
+  btnExecute.textContent = locked ? t('sidepanel.filling') : t('sidepanel.btnExecute');
   btnValidate.disabled = busy;
 }
 
@@ -389,7 +406,7 @@ function addStep(text: string, step?: number, total?: number) {
   if (prev) { prev.classList.remove('active'); prev.classList.add('done'); prev.querySelector('.step-icon')!.textContent = '✓'; }
   const line = document.createElement('div');
   line.className = 'step-line active';
-  const prefix = step && total ? `Step ${step}/${total} · ` : '';
+  const prefix = step && total ? t('common.stepPrefix', { step, total }) : '';
   line.innerHTML = '<span class="step-icon">●</span><span class="step-text"></span>';
   line.querySelector('.step-text')!.textContent = prefix + text;
   stepsLog.appendChild(line);
@@ -410,7 +427,7 @@ function setCollapsed(header: HTMLElement, body: HTMLElement, collapsed: boolean
 
 function showSnapshot(text: string) {
   snapshotView.textContent = text;
-  snapshotHeaderLabel.textContent = 'Captured page snapshot (real DOM HTML)';
+  snapshotHeaderLabel.textContent = t('sidepanel.snapshotHtml');
   setCollapsed(snapshotHeader, snapshotBody, false); // 新快照默认展开供确认
   snapshotSection.style.display = 'block';
 }
@@ -488,8 +505,8 @@ function renderIssues() {
       const btn = document.createElement('button');
       const isPicking = pickingIndex === issue.index;
       btn.className = 'issue-fix-btn' + (isPicking ? ' picking' : '');
-      btn.textContent = isPicking ? '◉ Click on page…' : '🎯 Pick element';
-      btn.title = 'Click the real target element on the page to fix this locator';
+      btn.textContent = isPicking ? t('sidepanel.pickOnPage') : t('sidepanel.pickElement');
+      btn.title = t('sidepanel.pickElementTitle');
       btn.addEventListener('click', () => onPickFix(issue.index));
       row.appendChild(btn);
     }
@@ -504,11 +521,11 @@ function onPickFix(index: number) {
   cancelPicking(false);
   pickingIndex = index;
   renderIssues();
-  showStatus('info', '🎯 Click the target element on the page (ESC to cancel)');
+  showStatus('info', t('sidepanel.pickTarget'));
   chrome.tabs.sendMessage(activeTabId, { type: 'startPickTarget' }).catch(() => {
     pickingIndex = null;
     renderIssues();
-    showStatus('error', 'Cannot start picking on this page (content script not available).');
+    showStatus('error', t('sidepanel.errPickUnavailable'));
   });
 }
 
@@ -548,13 +565,13 @@ function applyPickedSelector(selector: string, locator?: string) {
       issue.fixed = true;
       issue.fixedBy = 'pick';
       issue.locator = loc || selector;
-      issue.message = '已用页面点选的元素修复';
+      issue.message = t('sidepanel.pickedIssueMsg');
     }
     renderIssues();
-    showStatus('success', `✓ Locator #${index + 1} fixed: ${loc || selector}`);
+    showStatus('success', t('sidepanel.pickedFixed', { index: index + 1, locator: loc || selector }));
   } catch (e: any) {
     renderIssues();
-    showStatus('error', `Failed to apply picked selector: ${e?.message ?? e}`);
+    showStatus('error', t('sidepanel.errPickApply', { error: e?.message ?? e }));
   }
 }
 
@@ -616,8 +633,8 @@ function updateRecFab() {
   recFab.classList.toggle('recording', recording);
   recFab.textContent = recording ? `■ ${recordedBuffer.length}` : '⏺';
   recFab.title = recording
-    ? 'Stop recording and insert (ESC)'
-    : 'Record page actions and insert at this line';
+    ? t('sidepanel.recFabStopTitle')
+    : t('sidepanel.recFabTitle');
 }
 
 // hover 跟随鼠标定位插入行；正在编辑（textarea 聚焦）或执行中不显示
@@ -645,10 +662,10 @@ async function startRecording(index: number) {
   setRecordingUI(true);
   updateRecFab();
   showRecHandleAt(recordIndex);
-  showStatus('info', '● Recording… operate the page; press ESC or click ■ to finish');
+  showStatus('info', t('sidepanel.recording'));
   try { await chrome.tabs.sendMessage(activeTabId, { type: 'startRecording' }); }
   catch {
-    showStatus('error', 'Cannot start recording on this page (content script not available).');
+    showStatus('error', t('sidepanel.errRecordUnavailable'));
     recording = false; setRecordingUI(false); updateRecFab(); hideRecHandle();
   }
 }
@@ -674,7 +691,7 @@ async function stopRecording(insert: boolean) {
       lastActionsJson = JSON.stringify({ actions });
       actionsJsonEl.value = JSON.stringify({ actions }, null, 2);
     } catch { /* 解析失败不阻断 */ }
-    showStatus('success', `✓ Inserted ${newLines.length} recorded statement(s)`);
+    showStatus('success', t('sidepanel.recordedInserted', { count: newLines.length }));
   } else {
     hideStatus();
   }
@@ -694,9 +711,9 @@ function addFieldRow(label = '', type = 'text') {
   const row = document.createElement('div');
   row.className = 'field-row';
   row.innerHTML =
-    '<input class="field-label" placeholder="Field label" />' +
-    '<input class="field-type" placeholder="Type" />' +
-    '<button class="field-del" title="Delete">✕</button>';
+    `<input class="field-label" placeholder="${t('sidepanel.fieldLabel')}" />` +
+    `<input class="field-type" placeholder="${t('sidepanel.fieldType')}" />` +
+    `<button class="field-del" title="${t('sidepanel.fieldDelete')}">✕</button>`;
   (row.querySelector('.field-label') as HTMLInputElement).value = label;
   (row.querySelector('.field-type') as HTMLInputElement).value = type || 'text';
   row.querySelector('.field-del')!.addEventListener('click', () => row.remove());
@@ -722,6 +739,8 @@ function uuid(): string {
 // ── Init ──────────────────────────────────────────────────────────────────
 
 async function init() {
+  await initI18n();
+  refreshStaticUi();
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (tab?.id) {
     activeTabId = tab.id;
@@ -777,7 +796,7 @@ btnOneClickLocal.addEventListener('click', async () => {
   oneClickLocal = true;
   setState('selecting');
   hideSnapshot(); hideFields(); resetDownstream(); hideStatus(); resetSteps();
-  showStatus('info', '⚡ One-click local: pick the form container on the page…');
+  showStatus('info', t('sidepanel.oneClickPick'));
   await chrome.runtime.sendMessage({ type: 'startSelection', tabId: activeTabId });
 });
 
@@ -845,7 +864,7 @@ btnFill.addEventListener('click', async () => {
   setState('analyzing');
   resetSteps();
   hideStream();
-  showStatus('info', 'Analyzing form fields (streaming)...');
+  showStatus('info', t('sidepanel.statusAnalyzeStream'));
   await chrome.runtime.sendMessage({ type: 'analyzeForm', snapshot: detectedSnapshot, mode: detectedMode });
 });
 
@@ -855,32 +874,32 @@ btnFillLocal.addEventListener('click', async () => {
   setState('analyzing');
   resetSteps();
   hideStream();
-  showStatus('info', 'Analyzing form fields locally (no AI)...');
+  showStatus('info', t('sidepanel.statusAnalyzeLocal'));
   await chrome.runtime.sendMessage({ type: 'localAnalyzeForm', tabId: activeTabId, selector: selectedSelector });
 });
 
 btnAddField.addEventListener('click', () => addFieldRow());
 
 function updateRegenLabel() {
-  btnRegen.textContent = actionsJsonEl.value.trim() ? '🤖 AI regenerate' : '🤖 AI generate fill code';
+  btnRegen.textContent = actionsJsonEl.value.trim() ? t('sidepanel.btnAiRegenerate') : t('sidepanel.btnAiGenerate');
 }
 
 // ② 确认并保存字段（含唯一性校验）—— 与动作生成解耦：保存后即可命中缓存
 btnConfirmFields.addEventListener('click', async () => {
   const fields = collectFields();
-  if (fields.length === 0) { showStatus('error', 'Keep at least one field'); return; }
+  if (fields.length === 0) { showStatus('error', t('sidepanel.errKeepField')); return; }
 
   const formName = formNameInput.value.trim();
   const urlPattern = urlPatternInput.value.trim();
-  if (!formName) { showStatus('error', 'Please enter a form name — a name is required to save'); return; }
-  if (!urlPattern) { showStatus('error', 'Please enter a match URL'); return; }
-  try { new RegExp(urlPattern); } catch { showStatus('error', 'Invalid URL regular expression'); return; }
+  if (!formName) { showStatus('error', t('sidepanel.errFormName')); return; }
+  if (!urlPattern) { showStatus('error', t('sidepanel.errMatchUrl')); return; }
+  try { new RegExp(urlPattern); } catch { showStatus('error', t('sidepanel.errInvalidUrl')); return; }
 
   // 表单名必须唯一（全局，忽略大小写/首尾空白；排除当前正在编辑的条目）
   const existing = await loadCache();
   const dupe = existing.find(e => e.id !== currentEntryId && e.formName.trim().toLowerCase() === formName.toLowerCase());
   if (dupe) {
-    showStatus('error', `表单名“${formName}”已存在，请改用唯一名称后再保存`);
+    showStatus('error', t('sidepanel.errDupeFormName', { name: formName }));
     formNameInput.focus();
     return;
   }
@@ -907,20 +926,20 @@ btnConfirmFields.addEventListener('click', async () => {
   updateRegenLabel();
   setCollapsed(fieldsHeader, fieldsBody, true); // 保存字段后折叠字段区，节省空间
   showStatus('success', (lastCode || lastActionsJson)
-    ? '✓ Fields saved. Actions and code loaded — run or edit directly'
-    : '✓ Fields saved (will auto-hit the cache next time). Click “Generate fill code” to continue');
+    ? t('sidepanel.savedWithCode')
+    : t('sidepanel.savedNoCode'));
 });
 
 // 生成 / 重新生成动作（与保存解耦，由用户显式触发）
 btnRegen.addEventListener('click', async () => {
   if (state === 'generating' || state === 'filling') return;
-  if (!detectedSnapshot) { showStatus('error', 'Analyze and confirm fields first'); return; }
+  if (!detectedSnapshot) { showStatus('error', t('sidepanel.errAnalyzeFirst')); return; }
   const fields = collectFields();
   setState('generating');
   resetSteps();
   hideStream();
   hideIssues();
-  showStatus('info', 'Generating action JSON (streaming)...');
+  showStatus('info', t('sidepanel.statusGenerateStream'));
   await chrome.runtime.sendMessage({
     type: 'generateFill',
     instruction: '',
@@ -936,14 +955,14 @@ btnRegen.addEventListener('click', async () => {
 // 本地生成填充代码（不调用 AI）：用所选区域 DOM 为已确认字段生成唯一定位 + 默认值
 btnRegenLocal.addEventListener('click', async () => {
   if (state === 'generating' || state === 'filling') return;
-  if (!activeTabId || !selectedSelector) { showStatus('error', 'Pick a form container first'); return; }
+  if (!activeTabId || !selectedSelector) { showStatus('error', t('sidepanel.errPickFirst')); return; }
   const fields = collectFields();
-  if (!fields.length) { showStatus('error', 'Analyze and confirm fields first'); return; }
+  if (!fields.length) { showStatus('error', t('sidepanel.errAnalyzeFirst')); return; }
   setState('generating');
   resetSteps();
   hideStream();
   hideIssues();
-  showStatus('info', 'Generating fill code locally (no AI)...');
+  showStatus('info', t('sidepanel.statusGenerateLocal'));
   await chrome.runtime.sendMessage({
     type: 'localGenerateFill',
     fields,
@@ -958,9 +977,9 @@ btnValidate.addEventListener('click', async () => {
   // 以代码区为准同步出动作 JSON
   const acts = codeToActions(codeTextEl.value);
   const actionsJson = acts.length ? JSON.stringify({ actions: acts }) : (actionsJsonEl.value || lastActionsJson);
-  if (!actionsJson.trim()) { showStatus('error', 'Nothing to validate — generate code first'); return; }
+  if (!actionsJson.trim()) { showStatus('error', t('sidepanel.errValidateFirst')); return; }
   hideIssues();
-  showStatus('info', 'Validating locators on the page...');
+  showStatus('info', t('sidepanel.statusValidating'));
   await chrome.runtime.sendMessage({
     type: 'validateActions',
     tabId: activeTabId,
@@ -1029,7 +1048,7 @@ btnExecute.addEventListener('click', async () => {
   if (!activeTabId || state === 'filling') return;
 
   const code = codeTextEl.value.trim();
-  if (!code) { showStatus('error', 'Code is empty — generate or write it first'); return; }
+  if (!code) { showStatus('error', t('sidepanel.errCodeEmpty')); return; }
   lastCode = code;
 
   // 尽力把代码同步进动作 JSON 显示（不影响执行）
@@ -1042,15 +1061,15 @@ btnExecute.addEventListener('click', async () => {
   // 执行前让用户点一下页面，使页面获得真实焦点
   // （sidepanel 是独立 web contents，window.focus() 无法跨文档抢焦点）
   btnExecute.disabled = true;
-  showStatus('info', 'Click anywhere on the page to start filling...');
+  showStatus('info', t('sidepanel.statusClickPage'));
   try {
     const gate = await chrome.tabs.sendMessage(activeTabId, { type: 'armFillGate' });
     if (!gate?.ok) {
-      showStatus('error', 'Timed out waiting for page click — try again');
+      showStatus('error', t('sidepanel.errGateTimeout'));
       return;
     }
   } catch (e) {
-    showStatus('error', 'Cannot reach the page — refresh it and try again');
+    showStatus('error', t('sidepanel.errReachPage'));
     return;
   } finally {
     btnExecute.disabled = false;
@@ -1058,7 +1077,7 @@ btnExecute.addEventListener('click', async () => {
 
   setState('filling');
   resetSteps();
-  showStatus('info', 'Executing...');
+  showStatus('info', t('sidepanel.statusExecuting'));
   await chrome.runtime.sendMessage({
     type: 'executeFill',
     tabId: activeTabId,
@@ -1091,7 +1110,7 @@ chrome.runtime.onMessage.addListener((msg: any) => {
     case 'formAnalyzed':
       hideStream();
       renderFields(msg.fields);
-      formNameInput.value = msg.formName || 'Untitled form';
+      formNameInput.value = msg.formName || t('sidepanel.untitledForm');
       if (!currentEntryId) urlPatternInput.value = escapeRegExp(currentUrl);
       domHashView.value = detectedDomHash;
       cacheHit = false;
@@ -1102,7 +1121,7 @@ chrome.runtime.onMessage.addListener((msg: any) => {
         // 一键本地：识别完成 → 自动本地生成代码（fields JSON 已展开；action JSON 保持默认折叠）
         finishSteps(true);
         setState('generating');
-        showStatus('info', '⚡ One-click local: generating fill code locally…');
+        showStatus('info', t('sidepanel.oneClickGenerating'));
         chrome.runtime.sendMessage({
           type: 'localGenerateFill',
           fields: collectFields(),
@@ -1111,7 +1130,7 @@ chrome.runtime.onMessage.addListener((msg: any) => {
         });
       } else {
         setState('selected'); finishSteps(true);
-        showStatus('success', `✓ Detected ${msg.fields.length} field(s) — confirm and save`);
+        showStatus('success', t('sidepanel.detectedFields', { count: msg.fields.length }));
       }
       break;
 
@@ -1128,11 +1147,13 @@ chrome.runtime.onMessage.addListener((msg: any) => {
       oneClickLocal = false;
       const unfixed = lastIssues.filter(i => !i.fixed);
       const errors = unfixed.filter(i => i.severity === 'error').length;
-      if (wasOneClick && !errors) showStatus('success', `⚡ One-click local: code generated${unfixed.length ? ` (${unfixed.length} locator(s) need a look)` : ' and validated'} — review or run`);
-      else if (errors) showStatus('error', `Generated, but ${errors} locator(s) still match multiple/none — fix below (🎯) or edit code`);
-      else if (unfixed.length) showStatus('success', `✓ Generated. ${unfixed.length} locator(s) matched nothing (may be dynamic) — see report below`);
-      else if (lastIssues.length) showStatus('success', `✓ Generated; ${lastIssues.length} locator issue(s) auto-fixed (validated on page)`);
-      else showStatus('success', '✓ Actions and code generated — locators validated on the page');
+      if (wasOneClick && !errors) showStatus('success', t('sidepanel.oneClickGenerated', {
+        extra: unfixed.length ? t('sidepanel.oneClickLocatorsNeed', { count: unfixed.length }) : t('sidepanel.oneClickValidated'),
+      }));
+      else if (errors) showStatus('error', t('sidepanel.errGeneratedLocators', { count: errors }));
+      else if (unfixed.length) showStatus('success', t('sidepanel.generatedUnfixed', { count: unfixed.length }));
+      else if (lastIssues.length) showStatus('success', t('sidepanel.generatedAutoFixed', { count: lastIssues.length }));
+      else showStatus('success', t('sidepanel.generatedValidated'));
       break;
     }
 
@@ -1149,9 +1170,9 @@ chrome.runtime.onMessage.addListener((msg: any) => {
       lastIssues = (msg.issues ?? []) as ValidationIssue[];
       renderIssues();
       const bad = lastIssues.filter(i => !i.fixed);
-      if (!lastIssues.length) showStatus('success', '✓ All locators resolve to exactly one element');
-      else if (!bad.length) showStatus('success', `✓ ${lastIssues.length} issue(s) found and auto-fixed`);
-      else showStatus('error', `${bad.length} locator issue(s) need attention — fix below (🎯) or edit code`);
+      if (!lastIssues.length) showStatus('success', t('sidepanel.allLocatorsOk'));
+      else if (!bad.length) showStatus('success', t('sidepanel.issuesAutoFixed', { count: lastIssues.length }));
+      else showStatus('error', t('sidepanel.issuesNeedAttention', { count: bad.length }));
       break;
     }
 
@@ -1170,7 +1191,7 @@ chrome.runtime.onMessage.addListener((msg: any) => {
     case 'fillComplete':
       if (msg.success) {
         finishSteps(true);
-        showStatus('success', '✓ Filled successfully and cached (with executable code)');
+        showStatus('success', t('sidepanel.fillSuccess'));
         // 缓存动作 JSON 与可执行代码（代码为权威可复用内容）
         if (currentEntryId) updateCacheActions(currentEntryId, lastActionsJson, lastCode);
         setState('selected');
@@ -1183,7 +1204,7 @@ chrome.runtime.onMessage.addListener((msg: any) => {
       hideStream();
       finishSteps(false);
       oneClickLocal = false; // 一键流程中断
-      showStatus('error', `❌ ${msg.error ?? 'Operation failed'}`);
+      showStatus('error', `❌ ${msg.error ?? t('common.operationFailed')}`);
       // 恢复可编辑 / 可重试
       setState('selected');
       break;
@@ -1196,7 +1217,7 @@ chrome.runtime.onMessage.addListener((msg: any) => {
       hideSnapshot(); hideFields(); resetDownstream(); resetSteps();
       // 选中后立刻采集快照（用于缓存匹配）
       setState('snapshotting');
-      showStatus('info', 'Reading the selected region...');
+      showStatus('info', t('sidepanel.readingRegion'));
       if (activeTabId) {
         chrome.runtime.sendMessage({ type: 'snapshotForm', tabId: activeTabId, selector: selectedSelector, mode: captureMode });
       }
@@ -1272,14 +1293,14 @@ async function loadPendingDebug() {
 async function loadDebugEntry(id: string) {
   const list = await loadCache();
   const e = list.find(x => x.id === id);
-  if (!e) { showStatus('error', 'Cached form not found (it may have been deleted).'); return; }
+  if (!e) { showStatus('error', t('sidepanel.errCacheNotFound')); return; }
 
   // 强制中断进行中的录制/点选，替换全部状态
   if (recording) await stopRecording(false);
   cancelPicking(true);
 
   selectedSelector = e.selector || '';
-  selectedSelectorEl.textContent = selectedSelector || '(loaded from cache)';
+  selectedSelectorEl.textContent = selectedSelector || t('sidepanel.loadedFromCache');
   selectedSelectorEl.title = selectedSelector;
   currentEntryId = e.id;
   cacheHit = true;
@@ -1308,7 +1329,7 @@ async function loadDebugEntry(id: string) {
   updateRegenLabel();
   resetSteps();
   setState('selected');
-  showStatus('success', `🐞 Debug: loaded “${e.formName}” — edit code, validate, or run directly`);
+  showStatus('success', t('sidepanel.debugLoaded', { name: e.formName }));
 }
 
 // 快照就绪后：尝试命中缓存
@@ -1337,13 +1358,13 @@ async function onSnapshotReady() {
       else hideCode();
       updateRegenLabel();
       setState('selected'); finishSteps(true);
-      showStatus('success', '⚡ One-click local: cache hit — code loaded, review or run');
+      showStatus('success', t('sidepanel.oneClickCacheHit'));
     } else {
-      showFields(); hideActions(); hideCode(); // 隐藏动作区但保留已载入的 lastActionsJson/lastCode
+      showFields(); hideActions(); hideCode();
       setState('selected'); finishSteps(true);
       showStatus('success', hit.code
-        ? '⚡ Cache hit: fields and executable code loaded — confirm fields, then run'
-        : '⚡ Cache hit: fields loaded — confirm directly');
+        ? t('sidepanel.cacheHitWithCode')
+        : t('sidepanel.cacheHitFields'));
     }
   } else {
     currentEntryId = null;
@@ -1352,13 +1373,12 @@ async function onSnapshotReady() {
     lastCode = '';
     cacheHitHint.classList.remove('show');
     if (oneClickLocal) {
-      // 一键本地：未命中 → 自动本地识别（随后在 formAnalyzed 里继续本地生成）
       setState('analyzing');
-      showStatus('info', '⚡ One-click local: analyzing fields locally…');
+      showStatus('info', t('sidepanel.oneClickAnalyzing'));
       if (activeTabId) chrome.runtime.sendMessage({ type: 'localAnalyzeForm', tabId: activeTabId, selector: selectedSelector });
     } else {
       setState('selected');
-      showStatus('info', 'No cache match — click “Local analyze” or “AI analyze” to detect fields');
+      showStatus('info', t('sidepanel.noCacheMatch'));
     }
   }
 }

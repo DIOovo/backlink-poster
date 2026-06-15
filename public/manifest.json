@@ -1,14 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "AI Form Filler",
+  "name": "__MSG_name__",
+  "default_locale": "en",
   "version": "1.0.0",
-  "description": "Auto-fill web forms using AI",
+  "description": "__MSG_description__",
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
   "action": {
-    "default_title": "AI Form Filler",
+    "default_title": "__MSG_actionTitle__",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
@@ -49,7 +50,7 @@
         "default": "Alt+Shift+F",
         "mac": "Alt+Shift+F"
       },
-      "description": "A quick menu that pops up when the current page matches a cached form"
+      "description": "__MSG_commandQuickFill__"
     }
   },
   "host_permissions": ["<all_urls>"]

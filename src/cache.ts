@@ -1,15 +1,16 @@
 /**
  * 表单缓存管理页：列出所有缓存项，点击后可编辑（除 domHash 外）并保存。
- * 本文件被独立打包，禁止 runtime import（仅 import type）。
  */
 
 import type { FormCacheEntry, DetectedField } from './utils/types';
+import { initI18n, applyI18n, t, onLocaleChange, getDateLocale } from './i18n';
 
 const CACHE_KEY = 'formCache';
 
 const listEl = document.getElementById('list')!;
 const detailEl = document.getElementById('detail')!;
 const countEl = document.getElementById('count')!;
+const placeholderEl = document.getElementById('placeholder')!;
 
 let entries: FormCacheEntry[] = [];
 let activeId: string | null = null;
@@ -30,47 +31,54 @@ function pretty(v: unknown): string {
   catch { return typeof v === 'string' ? (v as string) : JSON.stringify(v); }
 }
 
+function actionMeta(e: FormCacheEntry): string {
+  if (e.code) return t('cache.metaHasCode');
+  if (e.actions) return t('cache.metaHasActions');
+  return t('cache.metaNoActions');
+}
+
 function renderList() {
-  countEl.textContent = `${entries.length} item(s)`;
+  countEl.textContent = t('cache.count', { count: entries.length });
   listEl.innerHTML = '';
   if (entries.length === 0) {
-    listEl.innerHTML = '<div class="list-empty">No cache yet. Forms you analyze and save in the side panel will appear here.</div>';
+    listEl.innerHTML = `<div class="list-empty">${esc(t('cache.empty'))}</div>`;
     return;
   }
   for (const e of entries) {
     const item = document.createElement('div');
     item.className = 'item' + (e.id === activeId ? ' active' : '');
-    const when = new Date(e.updatedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const when = new Date(e.updatedAt).toLocaleString(getDateLocale(), { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
     item.innerHTML =
       `<div class="item-name">${esc(e.formName)}</div>` +
       `<div class="item-url">${esc(e.urlPattern)}</div>` +
-      `<div class="item-meta">${e.fields?.length ?? 0} fields · ${e.code ? 'has code' : (e.actions ? 'has actions' : 'no actions')} · ${when}</div>`;
+      `<div class="item-meta">${t('cache.metaFields', { count: e.fields?.length ?? 0 })} · ${actionMeta(e)} · ${when}</div>`;
     item.addEventListener('click', () => { activeId = e.id; renderList(); renderDetail(e); });
     listEl.appendChild(item);
   }
 }
 
 function renderDetail(e: FormCacheEntry) {
+  placeholderEl.style.display = 'none';
   detailEl.innerHTML = `
     <div class="detail-head">
       <div class="edits">
-        <div class="edit-row"><label>Form name</label><input id="d-name" type="text" /></div>
-        <div class="edit-row"><label>Match URL</label><input id="d-url" type="text" /></div>
-        <div class="edit-row"><label>domHash</label><input id="d-hash" type="text" readonly /></div>
+        <div class="edit-row"><label>${esc(t('cache.formName'))}</label><input id="d-name" type="text" /></div>
+        <div class="edit-row"><label>${esc(t('cache.matchUrl'))}</label><input id="d-url" type="text" /></div>
+        <div class="edit-row"><label>${esc(t('cache.domHash'))}</label><input id="d-hash" type="text" readonly /></div>
       </div>
       <div class="detail-actions">
-        <button class="btn-save" id="d-save">💾 Save</button>
-        <button class="btn-del" id="d-del">🗑 Delete</button>
+        <button class="btn-save" id="d-save">${esc(t('cache.save'))}</button>
+        <button class="btn-del" id="d-del">${esc(t('cache.delete'))}</button>
       </div>
     </div>
     <div class="save-msg" id="d-msg"></div>
     <div class="panes">
       <div class="pane">
-        <div class="pane-head">Fields JSON</div>
+        <div class="pane-head">${esc(t('cache.fieldsJson'))}</div>
         <textarea id="d-fields" spellcheck="false"></textarea>
       </div>
       <div class="pane">
-        <div class="pane-head">Playwright code (executable)</div>
+        <div class="pane-head">${esc(t('cache.playwrightCode'))}</div>
         <textarea id="d-code" spellcheck="false"></textarea>
       </div>
     </div>`;
@@ -101,24 +109,22 @@ async function saveEntry(id: string) {
   const fieldsText = (detailEl.querySelector('#d-fields') as HTMLTextAreaElement).value.trim();
   const code = (detailEl.querySelector('#d-code') as HTMLTextAreaElement).value;
 
-  if (!formName) return msg('err', 'Form name cannot be empty');
-  if (!urlPattern) return msg('err', 'Match URL cannot be empty');
-  try { new RegExp(urlPattern); } catch { return msg('err', 'Invalid URL regular expression'); }
+  if (!formName) return msg('err', t('cache.errEmptyName'));
+  if (!urlPattern) return msg('err', t('cache.errEmptyUrl'));
+  try { new RegExp(urlPattern); } catch { return msg('err', t('cache.errInvalidUrl')); }
 
-  // 表单名必须唯一（全局，忽略大小写/首尾空白；排除自身）
   const nameDup = entries.find(e => e.id !== id && e.formName.trim().toLowerCase() === formName.toLowerCase());
-  if (nameDup) return msg('err', `表单名“${formName}”已存在，请改用唯一名称`);
+  if (nameDup) return msg('err', t('cache.errDupeName', { name: formName }));
 
   let fields: DetectedField[];
   try {
     const parsed = JSON.parse(fieldsText);
     fields = Array.isArray(parsed) ? parsed : parsed?.fields;
     if (!Array.isArray(fields)) throw new Error();
-  } catch { return msg('err', 'Invalid fields JSON (expected an array or {fields:[...]})'); }
+  } catch { return msg('err', t('cache.errInvalidFields')); }
 
-  // Uniqueness: URL + form name (excluding self)
   const dup = entries.find(e => e.id !== id && e.urlPattern === urlPattern && e.formName === formName);
-  if (dup) return msg('err', 'An entry with the same URL + form name already exists');
+  if (dup) return msg('err', t('cache.errDupeEntry'));
 
   const e = entries[idx];
   e.formName = formName;
@@ -128,21 +134,36 @@ async function saveEntry(id: string) {
   e.updatedAt = Date.now();
   await storeCache(entries);
   renderList();
-  msg('ok', '✓ Saved');
+  msg('ok', t('cache.saved'));
 }
 
 async function deleteEntry(id: string) {
-  if (!confirm('Delete this cache entry? Its fields and code will be removed.')) return;
+  if (!confirm(t('cache.deleteConfirm'))) return;
   entries = entries.filter(e => e.id !== id);
   await storeCache(entries);
   if (activeId === id) {
     activeId = null;
-    detailEl.innerHTML = '<div class="placeholder">← Select a cache entry on the left to view and edit</div>';
+    detailEl.innerHTML = '';
+    placeholderEl.style.display = '';
+    applyI18n();
   }
   renderList();
 }
 
+function refreshUi() {
+  applyI18n();
+  renderList();
+  if (activeId) {
+    const e = entries.find(x => x.id === activeId);
+    if (e) renderDetail(e);
+  }
+}
+
+onLocaleChange(refreshUi);
+
 async function init() {
+  await initI18n();
+  applyI18n();
   entries = await loadCache();
   entries.sort((a, b) => b.updatedAt - a.updatedAt);
   renderList();

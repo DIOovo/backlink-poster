@@ -6,7 +6,7 @@
   "author": "Elwin Sun",
   "license": "MIT",
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && vite build --config vite.content.config.ts",
     "dev": "vite build --watch",
     "gen:injected": "node scripts/gen-injected.mjs"
   },
