@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Form Filler — Settings</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent: #4f46e5;
+      --accent-light: #eef2ff;
+      --accent-dark: #3730a3;
+      --success: #16a34a;
+      --error: #dc2626;
+      --bg: #f3f4f6;
+      --surface: #ffffff;
+      --border: #e5e7eb;
+      --text: #111827;
+      --muted: #6b7280;
+      --radius: 10px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      color: var(--text);
+      background: var(--bg);
+      padding: 32px 0 64px;
+    }
+
+    .container { max-width: 640px; margin: 0 auto; padding: 0 20px; }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 14px 20px 12px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .card-body { padding: 18px 20px; }
+
+    /* ── Form fields ── */
+    .field { margin-bottom: 16px; }
+    .field:last-child { margin-bottom: 0; }
+    .field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 5px;
+    }
+    .field input, .field select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--surface);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .field input:focus, .field select:focus { border-color: var(--accent); }
+    .field .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+    .row { display: flex; gap: 12px; }
+    .row .field { flex: 1; }
+
+    /* ── Buttons ── */
+    .btn {
+      padding: 8px 18px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: background 0.15s;
+    }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover { background: var(--accent-dark); }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { background: var(--bg); }
+    .btn-danger { background: #fef2f2; color: var(--error); border: 1px solid #fecaca; }
+    .btn-danger:hover { background: #fee2e2; }
+
+    /* ── Save feedback ── */
+    .save-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .save-msg {
+      font-size: 12px;
+      font-weight: 500;
+      display: none;
+    }
+    .save-msg.success { color: var(--success); display: block; }
+    .save-msg.error { color: var(--error); display: block; }
+
+    /* ── Profile list ── */
+    .profile-list { list-style: none; margin-bottom: 12px; }
+    .profile-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 6px;
+      gap: 10px;
+    }
+    .profile-name { flex: 1; font-weight: 500; }
+    .profile-meta { font-size: 11px; color: var(--muted); }
+
+    /* ── Profile editor ── */
+    .profile-editor {
+      display: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 12px;
+      background: #fafafa;
+    }
+    .profile-editor.show { display: block; }
+    .profile-editor h3 { font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+    .profile-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .profile-field label { font-size: 11px; color: var(--muted); margin-bottom: 3px; display: block; }
+    .profile-field input {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 6px 8px;
+      font-size: 12px;
+      outline: none;
+    }
+    .profile-field input:focus { border-color: var(--accent); }
+    .profile-actions { display: flex; gap: 8px; }
+
+    /* Custom fields */
+    .custom-fields { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
+    .custom-field-row { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
+    .custom-field-row input { flex: 1; }
+    .btn-sm { padding: 5px 10px; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>✦ AI Form Filler Settings</h1>
+
+    <!-- AI Config -->
+    <div class="card">
+      <div class="card-header">AI Configuration</div>
+      <div class="card-body">
+        <div class="row">
+          <div class="field">
+            <label>AI Provider</label>
+            <select id="ai-provider">
+              <option value="anthropic">Anthropic (Claude)</option>
+              <option value="openai">OpenAI (GPT)</option>
+              <option value="custom">Custom (OpenAI-compatible)</option>
+              <option value="custom-anthropic">Custom (Claude-compatible)</option>
+            </select>
+          </div>
+          <div class="field" id="model-field">
+            <label>Model ID</label>
+            <input type="text" id="ai-model" list="model-presets" placeholder="e.g. gpt-4o" autocomplete="off" />
+            <datalist id="model-presets"></datalist>
+            <div class="hint">Type any model ID, or pick one from the suggestions</div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Base URL</label>
+          <input type="text" id="base-url" placeholder="Leave empty to use the default" autocomplete="off" />
+          <div class="hint" id="base-url-hint">Default: https://api.openai.com/v1 (for a proxy / local model, enter it here — no /chat/completions suffix needed)</div>
+        </div>
+        <div class="field">
+          <label>API Key</label>
+          <input type="password" id="api-key" placeholder="sk-..." autocomplete="off" />
+          <div class="hint">The key is stored only in local browser storage and is never uploaded</div>
+        </div>
+        <div class="save-row">
+          <button class="btn btn-primary" id="btn-save-ai">Save AI config</button>
+          <span class="save-msg" id="ai-save-msg"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profiles -->
+    <div class="card">
+      <div class="card-header">Fill Profiles</div>
+      <div class="card-body">
+        <ul class="profile-list" id="profile-list">
+          <li style="font-size:12px;color:var(--muted);padding:4px 0;">No profiles yet</li>
+        </ul>
+        <button class="btn btn-secondary" id="btn-add-profile">+ New profile</button>
+
+        <!-- Profile editor (shown inline) -->
+        <div class="profile-editor" id="profile-editor">
+          <h3 id="editor-title">New profile</h3>
+          <div class="field">
+            <label>Profile name</label>
+            <input type="text" id="profile-name-input" placeholder="e.g. Test User A" />
+          </div>
+          <div class="profile-fields">
+            <div class="profile-field">
+              <label>Name (name)</label>
+              <input type="text" data-key="name" placeholder="John Doe" />
+            </div>
+            <div class="profile-field">
+              <label>Email (email)</label>
+              <input type="text" data-key="email" placeholder="test@example.com" />
+            </div>
+            <div class="profile-field">
+              <label>Phone (phone)</label>
+              <input type="text" data-key="phone" placeholder="13800138000" />
+            </div>
+            <div class="profile-field">
+              <label>Company (company)</label>
+              <input type="text" data-key="company" placeholder="Acme Corp" />
+            </div>
+            <div class="profile-field">
+              <label>Address (address)</label>
+              <input type="text" data-key="address" placeholder="123 Main St..." />
+            </div>
+            <div class="profile-field">
+              <label>City (city)</label>
+              <input type="text" data-key="city" placeholder="New York" />
+            </div>
+            <div class="profile-field">
+              <label>Zipcode (zipcode)</label>
+              <input type="text" data-key="zipcode" placeholder="100000" />
+            </div>
+            <div class="profile-field">
+              <label>Country (country)</label>
+              <input type="text" data-key="country" placeholder="China" />
+            </div>
+            <div class="profile-field">
+              <label>Username (username)</label>
+              <input type="text" data-key="username" placeholder="testuser" />
+            </div>
+            <div class="profile-field">
+              <label>Password (password)</label>
+              <input type="text" data-key="password" placeholder="Test@1234" />
+            </div>
+          </div>
+
+          <!-- Custom fields -->
+          <div class="custom-fields">
+            <div style="font-size:12px;font-weight:500;margin-bottom:8px;">Custom fields</div>
+            <div id="custom-fields-container"></div>
+            <button class="btn btn-secondary btn-sm" id="btn-add-custom-field">+ Add field</button>
+          </div>
+
+          <div class="profile-actions" style="margin-top:14px;">
+            <button class="btn btn-primary" id="btn-save-profile">Save profile</button>
+            <button class="btn btn-secondary" id="btn-cancel-profile">Cancel</button>
+            <button class="btn btn-danger" id="btn-delete-profile" style="display:none;">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/options.ts"></script>
+</body>
+</html>
