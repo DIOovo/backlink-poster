@@ -6,13 +6,14 @@ import type { AIConfig, Profile } from './utils/types';
 import { getAIConfig, saveAIConfig, getProfiles, saveProfiles } from './utils/storage';
 import { initI18n, applyI18n, t, setLocale, onLocaleChange, getLocale, type Locale } from './i18n';
 
-type Provider = 'anthropic' | 'openai' | 'custom' | 'custom-anthropic';
+type Provider = 'anthropic' | 'openai' | 'deepseek' | 'custom' | 'custom-anthropic';
 
 const CLAUDE_MODELS = ['claude-sonnet-4-6', 'claude-opus-4-6', 'claude-haiku-4-5-20251001'];
 
 const MODELS: Record<Provider, string[]> = {
   anthropic: CLAUDE_MODELS,
   openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+  deepseek: ['deepseek-v4-flash', 'deepseek-v4-pro'],
   custom: [],
   'custom-anthropic': CLAUDE_MODELS,
 };
@@ -20,6 +21,7 @@ const MODELS: Record<Provider, string[]> = {
 const DEFAULT_BASE_URL: Record<Provider, string> = {
   anthropic: 'https://api.anthropic.com',
   openai: 'https://api.openai.com/v1',
+  deepseek: 'https://api.deepseek.com',
   custom: '',
   'custom-anthropic': '',
 };
@@ -78,7 +80,20 @@ function updateModelOptions() {
   }
 }
 
-providerEl.addEventListener('change', updateModelOptions);
+// 用户切换 provider：非 custom 的固定接口（含 DeepSeek）自动填好默认 Base URL 与默认模型 id；
+// custom 两项不自动填 Base URL（保留用户已填内容）。init 加载已存配置时不走这里，避免覆盖。
+function onProviderChange() {
+  const provider = providerEl.value as Provider;
+  if (!CUSTOM_PROVIDERS.includes(provider)) {
+    baseUrlEl.value = DEFAULT_BASE_URL[provider];
+  }
+  if (MODELS[provider].length > 0) {
+    modelEl.value = MODELS[provider][0];
+  }
+  updateModelOptions();
+}
+
+providerEl.addEventListener('change', onProviderChange);
 
 localeEl.addEventListener('change', async () => {
   const locale = localeEl.value as Locale;

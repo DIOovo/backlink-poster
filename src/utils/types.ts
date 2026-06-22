@@ -5,9 +5,10 @@ export interface Profile {
 }
 
 export interface AIConfig {
+  // 'deepseek'        = DeepSeek（OpenAI 兼容接口，固定默认 Base URL）
   // 'custom'          = 任意 OpenAI 兼容接口（本地模型 / 中转 / 第三方）
   // 'custom-anthropic'= 任意 Claude/Anthropic 兼容接口
-  provider: 'anthropic' | 'openai' | 'custom' | 'custom-anthropic';
+  provider: 'anthropic' | 'openai' | 'deepseek' | 'custom' | 'custom-anthropic';
   apiKey: string;
   model: string;
   /** 可选：自定义 API Base URL，留空则使用该 provider 的默认地址 */

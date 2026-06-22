@@ -27,6 +27,7 @@ const zhCN: Record<keyof typeof en, string> = {
   'options.aiProvider': 'AI 提供商',
   'options.providerAnthropic': 'Anthropic (Claude)',
   'options.providerOpenai': 'OpenAI (GPT)',
+  'options.providerDeepseek': 'DeepSeek（深度求索）',
   'options.providerCustom': '自定义（OpenAI 兼容）',
   'options.providerCustomAnthropic': '自定义（Claude 兼容）',
   'options.modelId': '模型 ID',
@@ -115,6 +116,9 @@ const zhCN: Record<keyof typeof en, string> = {
   'sidepanel.issuesTitle': '定位校验报告',
   'sidepanel.btnValidate': '🔎 校验定位器',
   'sidepanel.btnExecute': '⚡ 确认并填充页面',
+  'sidepanel.pausedTitle': '会话已暂停',
+  'sidepanel.pausedDesc': '当前进行中的会话属于另一个标签页。切回该标签页即可继续，会自动恢复。',
+  'sidepanel.pausedNewHere': '在此标签页新建',
 
   'sidepanel.picking': '🖱 在页面上点击元素…（ESC 取消）',
   'sidepanel.btnReSelect': '🔄 重新选择',

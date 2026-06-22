@@ -290,6 +290,7 @@ export async function repairActions(
 const DEFAULT_BASE_URL: Record<AIConfig['provider'], string> = {
   anthropic: 'https://api.anthropic.com',
   openai: 'https://api.openai.com/v1',
+  deepseek: 'https://api.deepseek.com', // OpenAI 兼容；joinUrl 追加 chat/completions
   custom: '',
   'custom-anthropic': '',
 };

@@ -27,6 +27,7 @@ const en = {
   'options.aiProvider': 'AI Provider',
   'options.providerAnthropic': 'Anthropic (Claude)',
   'options.providerOpenai': 'OpenAI (GPT)',
+  'options.providerDeepseek': 'DeepSeek',
   'options.providerCustom': 'Custom (OpenAI-compatible)',
   'options.providerCustomAnthropic': 'Custom (Claude-compatible)',
   'options.modelId': 'Model ID',
@@ -116,6 +117,9 @@ const en = {
   'sidepanel.issuesTitle': 'Locator check report',
   'sidepanel.btnValidate': '🔎 Validate locators',
   'sidepanel.btnExecute': '⚡ Confirm & fill the page',
+  'sidepanel.pausedTitle': 'Session paused',
+  'sidepanel.pausedDesc': 'This in-progress session belongs to another tab. Switch back to that tab to continue — it will be restored automatically.',
+  'sidepanel.pausedNewHere': 'Start fresh on this tab',
 
   // ── Side panel (dynamic) ──
   'sidepanel.picking': '🖱 Click an element on the page… (ESC to cancel)',

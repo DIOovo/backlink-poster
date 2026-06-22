@@ -661,6 +661,7 @@ function resetPanel() {
   selectedSelector = ''; detectedSnapshot = ''; detectedDomHash = '';
   currentEntryId = null; cacheHit = false; oneClickLocal = false;
   lastActionsJson = ''; lastCode = '';
+  paused = false; showPauseOverlay(false);
   setState('idle');
   hideSnapshot(); hideFields(); resetDownstream(); hideStatus(); resetSteps();
   hideStream();
@@ -668,19 +669,60 @@ function resetPanel() {
 
 btnClear.addEventListener('click', resetPanel);
 
-// 页面 URL 改变 / 切换标签：把侧边栏刷新成初始态，并对准新的活动标签
-function applyActiveTab(tabId: number, url: string) {
-  activeTabId = tabId;
-  currentUrl = url || '';
-  urlBar.textContent = currentUrl || '—';
-  urlBar.title = currentUrl;
+// ── 切换标签：暂停遮罩（不清空进行中会话；回到 owner 自动恢复；在别的 tab 点「新建」则清空接管）──
+// 受 Chrome 限制（sidePanel.open 需用户手势、无法在切回时自动重开面板），用遮罩等价实现。
+let paused = false; // 当前是否处于「切到非 owner 标签」的暂停遮罩态
+
+function pauseOverlayEl(): HTMLElement {
+  let el = document.getElementById('pause-overlay');
+  if (el) return el;
+  el = document.createElement('div');
+  el.id = 'pause-overlay';
+  el.style.cssText = [
+    'position:fixed', 'inset:0', 'z-index:99999', 'background:var(--bg)',
+    'display:flex', 'flex-direction:column', 'align-items:center', 'justify-content:center',
+    'gap:14px', 'padding:24px', 'text-align:center', 'color:var(--text)',
+    'font:13px/1.6 system-ui,-apple-system,sans-serif',
+  ].join(';');
+  const title = document.createElement('div');
+  title.id = 'pause-overlay-title';
+  title.style.cssText = 'font-size:14px;font-weight:600;color:var(--accent);';
+  const desc = document.createElement('div');
+  desc.id = 'pause-overlay-desc';
+  desc.style.cssText = 'color:var(--muted);max-width:260px;';
+  const btn = document.createElement('button');
+  btn.id = 'pause-overlay-new';
+  btn.className = 'btn btn-secondary';
+  btn.addEventListener('click', adoptActiveTabFresh);
+  el.append(title, desc, btn);
+  document.body.appendChild(el);
+  return el;
 }
-async function refreshForActiveTab() {
+function showPauseOverlay(show: boolean) {
+  if (!show) { document.getElementById('pause-overlay')?.remove(); return; }
+  const el = pauseOverlayEl();
+  el.querySelector('#pause-overlay-title')!.textContent = t('sidepanel.pausedTitle');
+  el.querySelector('#pause-overlay-desc')!.textContent = t('sidepanel.pausedDesc');
+  el.querySelector('#pause-overlay-new')!.textContent = t('sidepanel.pausedNewHere');
+  el.style.display = 'flex';
+}
+
+/** 在当前活动标签上重新开始（清空旧会话并接管该标签） */
+async function adoptActiveTabFresh() {
+  paused = false;
+  showPauseOverlay(false);
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab?.id != null) applyActiveTab(tab.id, tab.url ?? '');
   } catch { /* ignore */ }
   resetPanel();
+}
+
+function applyActiveTab(tabId: number, url: string) {
+  activeTabId = tabId;
+  currentUrl = url || '';
+  urlBar.textContent = currentUrl || '—';
+  urlBar.title = currentUrl;
 }
 // 同一标签内 URL 变化（含 SPA 的 history 更新会触发 onUpdated 的 url 字段）
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
@@ -699,8 +741,35 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     resetPanel();
   }
 });
-// 切换活动标签：对准新标签并重置
-chrome.tabs.onActivated.addListener(() => { refreshForActiveTab(); });
+// 切换活动标签：
+//  - 无进行中会话 → 对准新标签并重置（原行为）
+//  - 有进行中会话且切回 owner → 撤下遮罩、恢复
+//  - 有进行中会话且切到其它标签 → 盖上暂停遮罩、保留会话（activeTabId 不变，仍指向 owner）
+chrome.tabs.onActivated.addListener(async () => {
+  let newTabId: number | null = null, newUrl = '';
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    newTabId = tab?.id ?? null; newUrl = tab?.url ?? '';
+  } catch { return; }
+  if (newTabId == null) return;
+
+  if (state === 'idle') {
+    paused = false; showPauseOverlay(false);
+    applyActiveTab(newTabId, newUrl);
+    resetPanel();
+    return;
+  }
+  if (newTabId === activeTabId) {
+    paused = false; showPauseOverlay(false);   // 回到 owner：恢复
+  } else {
+    paused = true; showPauseOverlay(true);      // 切走：暂停遮罩，保留会话
+  }
+});
+
+// owner 标签被关闭：会话已无处可恢复，清空（撤下遮罩）
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (tabId === activeTabId && state !== 'idle') resetPanel();
+});
 
 // ESC：当焦点在侧边栏时也能退出选择模式（content.js 处理焦点在页面的情况）
 document.addEventListener('keydown', (e) => {
