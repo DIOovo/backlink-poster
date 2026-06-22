@@ -8,6 +8,8 @@
  */
 
 import type { CaptureMode, DetectedField, FillAction, FillTarget, FormCacheEntry, ValidationIssue } from './utils/types';
+import { CONFIG } from './utils/config';
+import { codeToActions, actionsToCode, actionLine } from './utils/pwcode';
 import { initI18n, applyI18n, t, onLocaleChange } from './i18n';
 
 type PanelState =
@@ -166,176 +168,29 @@ async function updateCacheActions(id: string, actions: string, code?: string): P
     await storeCache(list);
   }
 }
-
-// ── JSON ⇄ Playwright code conversion ───────────────────────────────────────
-
-function escStr(v: string): string {
-  return String(v ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-}
-/** 生成 JS 字符串字面量：含换行用反引号模板串（避免单引号换行报错），否则用单引号 */
-function jsStr(v: string): string {
-  const s = String(v ?? '');
-  if (/[\r\n]/.test(s)) {
-    return '`' + s.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${') + '`';
-  }
-  return `'${escStr(s)}'`;
-}
-/** 始终用反引号模板串包裹（富文本等场景，正确处理换行） */
-function tpl(v: string): string {
-  return '`' + String(v ?? '').replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${') + '`';
-}
-/** 还原 JS 字符串字面量内容（单/双/反引号转义） */
-function unescStr(v: string): string {
-  return String(v ?? '').replace(/\\(\$\{|[`'"\\])/g, (_m, g) => g);
-}
-
 /**
- * 修正不安全的 CSS 选择器：若是单一 #id 形式且 id 含 CSS 不安全字符（如 / : . 空格等），
- * 改写为属性选择器 [id="..."]，避免 Playwright 解析 CSS 时报 "Unexpected token"。
- * 其它复杂选择器（含组合符、属性、类等）原样保留。
+ * 填充成功后持久化当前表单：
+ * - 已有缓存条目 → 仅更新动作/代码；
+ * - 尚无条目（一键本地 / 直接生成执行，未手动“确认保存字段”）→ 按当前字段/名称/URL 自动建条目，
+ *   避免“填过一次却没存下来”。按 (urlPattern+formName) upsert，重复则更新同一条。
  */
-function safeCss(sel: string): string {
-  const s = String(sel ?? '').trim();
-  // 仅匹配「单一 #后跟一段无组合符的标识」；id 部分允许任意非组合符字符（含 / 等）
-  const m = s.match(/^#([^\s>+~,\[\]()]+)$/);
-  if (m && /[^A-Za-z0-9_-]/.test(m[1])) {
-    return `[id="${m[1].replace(/(["\\])/g, '\\$1')}"]`;
-  }
-  return s;
+async function persistFilledForm(): Promise<void> {
+  if (currentEntryId) { await updateCacheActions(currentEntryId, lastActionsJson, lastCode); return; }
+  const fields = collectFields();
+  const formName = formNameInput.value.trim();
+  const urlPattern = urlPatternInput.value.trim();
+  if (!fields.length || !formName || !urlPattern) return; // 信息不足，跳过自动保存
+  try { new RegExp(urlPattern); } catch { return; }       // URL 正则非法，跳过
+  const now = Date.now();
+  const res = await upsertCache({
+    id: uuid(), urlPattern, formName, domHash: detectedDomHash, selector: selectedSelector,
+    fields, actions: lastActionsJson || '', code: lastCode || '', createdAt: now, updatedAt: now,
+  });
+  currentEntryId = res.id;
+  cacheHit = true;
 }
 
-function locatorCode(t: FillTarget): string {
-  switch (t.by) {
-    case 'label':       return `getByLabel(${jsStr(t.value)})`;
-    case 'placeholder': return `getByPlaceholder(${jsStr(t.value)})`;
-    case 'role':        return t.value
-                          ? `getByRole(${jsStr(t.role || 'textbox')}, { name: ${jsStr(t.value)} })`
-                          : `getByRole(${jsStr(t.role || 'textbox')}).first()`;
-    case 'text':        return `getByText(${jsStr(t.value)})`;
-    case 'altText':     return `getByAltText(${jsStr(t.value)})`;
-    case 'title':       return `getByTitle(${jsStr(t.value)})`;
-    case 'name':        return `locator('[name="${escStr(t.value)}"]')`;
-    case 'id':          return `locator('[id="${escStr(t.value)}"]')`;
-    case 'css':         return `locator(${jsStr(safeCss(t.value))})`;
-    default:            return `locator(${jsStr(safeCss(t.value))})`;
-  }
-}
-function methodCode(a: FillAction): string {
-  switch (a.type) {
-    case 'fill':          return `fill(${tpl(a.value ?? '')})`;   // 始终反引号
-    case 'selectOption':  return a.value && a.value.length ? `selectOption(${jsStr(a.value)})` : `selectOption({ index: 0 })`;
-    case 'check':         return `check()`;
-    case 'uncheck':       return `uncheck()`;
-    case 'click':         return `click()`;
-    case 'press':         return `press(${jsStr(a.value || 'Enter')})`;
-    case 'pressSequentially': return `pressSequentially(${tpl(a.value ?? '')})`;
-    case 'type':          return `type(${tpl(a.value ?? '')})`;
-    case 'clear':         return `clear()`;
-    case 'setInputFiles': return `setInputFiles(${jsStr(a.value ?? '')})`;
-    case 'hover':         return `hover()`;
-    case 'focus':         return `focus()`;
-    // 调试用低层事件
-    case 'mousedown': case 'mouseup': case 'mousemove':
-    case 'pointerdown': case 'pointerup': case 'pointermove':
-      return `${a.type}()`;
-    case 'dispatchEvent': return `dispatchEvent(${jsStr(a.value || 'click')})`;
-    default:              return `click()`;
-  }
-}
-function actionLine(a: FillAction): string {
-  const base = (a.raw && a.raw.trim()) ? a.raw.trim() : `page.${locatorCode(a.target)}`;
-  return `await ${base}.${methodCode(a)};`;
-}
-function actionsToCode(actions: FillAction[]): string {
-  return actions.map(actionLine).join('\n');
-}
-
-function parseLocator(s: string): { target: FillTarget; rest: string } {
-  // getByRole('role', { name: 'x' })
-  let m = s.match(/^getByRole\(\s*(['"`])([\s\S]*?)\1\s*,\s*\{\s*name\s*:\s*(['"`])([\s\S]*?)\3\s*\}\s*\)/);
-  if (m) return { target: { by: 'role', role: unescStr(m[2]), value: unescStr(m[4]) }, rest: s.slice(m[0].length) };
-  // getByRole('role')  —— 无 name（如 option），执行时取 .first()
-  m = s.match(/^getByRole\(\s*(['"`])([\s\S]*?)\1\s*\)/);
-  if (m) return { target: { by: 'role', role: unescStr(m[2]), value: '' }, rest: s.slice(m[0].length) };
-
-  m = s.match(/^getBy(Label|Placeholder|Text|AltText|Title)\(\s*(['"`])([\s\S]*?)\2\s*\)/);
-  if (m) {
-    const map: Record<string, FillTarget['by']> = { Label: 'label', Placeholder: 'placeholder', Text: 'text', AltText: 'altText', Title: 'title' };
-    return { target: { by: map[m[1]], value: unescStr(m[3]) }, rest: s.slice(m[0].length) };
-  }
-  m = s.match(/^locator\(\s*(['"`])([\s\S]*?)\1\s*\)/);
-  if (m) {
-    const sel = unescStr(m[2]);
-    let mm = sel.match(/^\[name="([\s\S]*)"\]$/);
-    if (mm) return { target: { by: 'name', value: mm[1] }, rest: s.slice(m[0].length) };
-    mm = sel.match(/^\[id="([\s\S]*)"\]$/);
-    if (mm) return { target: { by: 'id', value: mm[1] }, rest: s.slice(m[0].length) };
-    return { target: { by: 'css', value: sel }, rest: s.slice(m[0].length) };
-  }
-  throw new Error('Cannot parse locator: ' + s);
-}
-function firstString(a: string): string {
-  const m = a.match(/(['"`])([\s\S]*?)\1/);
-  return m ? unescStr(m[2]) : '';
-}
-/** 按顶层分号切分语句；引号（'、"、`）内的分号不切分 */
-function splitStatements(code: string): string[] {
-  const out: string[] = [];
-  let buf = '';
-  let quote: string | null = null;
-  for (let i = 0; i < code.length; i++) {
-    const c = code[i];
-    if (quote) {
-      buf += c;
-      if (c === '\\') { buf += code[i + 1] ?? ''; i++; continue; }
-      if (c === quote) quote = null;
-      continue;
-    }
-    if (c === '\'' || c === '"' || c === '`') { quote = c; buf += c; continue; }
-    if (c === ';') { out.push(buf); buf = ''; continue; }
-    buf += c;
-  }
-  if (buf.trim()) out.push(buf);
-  return out.map(s => s.trim()).filter(s => s && !s.startsWith('//'));
-}
-
-/** 尝试把链式表达式解析为单一结构化 target（仅 page.<一个定位器>[.first()/.nth()/.last()]） */
-function trySimpleTarget(chain: string): FillTarget | null {
-  if (!chain.startsWith('page.')) return null;
-  try {
-    const { target, rest } = parseLocator(chain.slice('page.'.length));
-    if (/^(\.first\(\)|\.last\(\)|\.nth\(\s*\d+\s*\))*$/.test(rest.trim())) return target;
-  } catch { /* not simple */ }
-  return null;
-}
-
-/**
- * 把 Playwright 代码解析为动作 JSON（仅用于显示同步，尽力而为）：
- * 简单单定位器 → 结构化 target；复杂链（相对定位 / keyboard / frameLocator 等）→ raw。
- * 不抛错；无法解析的行跳过。执行始终以代码为准，不依赖本函数。
- */
-function codeToActions(code: string): FillAction[] {
-  const stmts = splitStatements(code);
-  const actions: FillAction[] = [];
-  for (const stmt of stmts) {
-    const m = stmt.match(/^await\s+(page\.[\s\S]+)\.([a-zA-Z]+)\(([\s\S]*)\)$/);
-    if (!m) continue; // 跳过无法识别的行
-    const chain = m[1].trim();
-    const type = m[2] as FillAction['type'];
-    const argsRaw = m[3].trim();
-    const action: FillAction = { type, target: { by: 'css', value: '' } };
-    const simple = trySimpleTarget(chain);
-    if (simple) action.target = simple;
-    else action.raw = chain;
-    if (type === 'selectOption') {
-      if (!/index\s*:\s*0/.test(argsRaw)) action.value = firstString(argsRaw);
-    } else if (type === 'fill' || type === 'press' || type === 'pressSequentially' || type === 'type' || type === 'setInputFiles' || type === 'dispatchEvent') {
-      action.value = firstString(argsRaw);
-    }
-    actions.push(action);
-  }
-  return actions;
-}
+// ── 动作 JSON（仅 parseActionsJson/prettyActions 保留于此，含 i18n）；代码⇄动作⇄selector 转换见 utils/pwcode.ts ──
 
 function parseActionsJson(text: string): FillAction[] {
   let data: any;
@@ -378,7 +233,8 @@ function setState(s: PanelState) {
   else updateRegenLabel();
 
   const locked = s === 'filling';
-  actionsJsonEl.readOnly = locked;
+  // 动作 JSON 始终只读（代码为唯一事实源）
+  actionsJsonEl.readOnly = true;
   codeTextEl.readOnly = locked;
   btnExecute.disabled = locked;
   btnExecute.classList.toggle('running', locked);
@@ -978,6 +834,8 @@ btnValidate.addEventListener('click', async () => {
   const acts = codeToActions(codeTextEl.value);
   const actionsJson = acts.length ? JSON.stringify({ actions: acts }) : (actionsJsonEl.value || lastActionsJson);
   if (!actionsJson.trim()) { showStatus('error', t('sidepanel.errValidateFirst')); return; }
+  // 同步动作 JSON（让问题报告/🎯点选修复的下标与当前代码对齐），但不改动代码区本身
+  if (acts.length) { lastActionsJson = actionsJson; actionsJsonEl.value = prettyActions(actionsJson); }
   hideIssues();
   showStatus('info', t('sidepanel.statusValidating'));
   await chrome.runtime.sendMessage({
@@ -1007,32 +865,16 @@ function debounce<T extends (...a: any[]) => void>(fn: T, ms: number): T {
   return ((...a: any[]) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }) as T;
 }
 
-// 标记当前正由代码同步触发，避免两个 input 监听互相循环
-let syncing = false;
+// 代码是唯一事实源：动作 JSON 仅作「由代码单向派生的只读视图」，不再反向回写代码，
+// 从根本上消除 code↔JSON 往返漂移（如丢失 .first()/ref/未覆盖方法被还原成 click()）。
+actionsJsonEl.readOnly = true;
 
-// JSON 编辑 → 实时同步代码（防抖）
-const syncFromJson = debounce(() => {
-  if (syncing) return;
-  if (codeSection.style.display === 'none') return; // 代码区未展开则不联动
-  try {
-    const actions = parseActionsJson(actionsJsonEl.value);
-    lastActionsJson = JSON.stringify({ actions });
-    syncing = true;
-    setCode(actionsToCode(actions));
-    syncing = false;
-  } catch { /* 编辑中途的非法 JSON 静默忽略，不打断输入 */ }
-}, 300);
-actionsJsonEl.addEventListener('input', syncFromJson);
-
-// 代码编辑 → 实时同步动作 JSON（防抖）
+// 代码编辑 → 单向刷新动作 JSON 视图（防抖）
 const syncFromCode = debounce(() => {
-  if (syncing) return;
   try {
     const actions = codeToActions(codeTextEl.value);
     lastActionsJson = JSON.stringify({ actions });
-    syncing = true;
     actionsJsonEl.value = JSON.stringify({ actions }, null, 2);
-    syncing = false;
   } catch { /* 编辑中途的非法代码静默忽略 */ }
 }, 300);
 codeTextEl.addEventListener('input', () => { renderHighlight(); syncFromCode(); });
@@ -1140,6 +982,12 @@ chrome.runtime.onMessage.addListener((msg: any) => {
       showActions(msg.script);    // 折叠展示动作 JSON
       regenCodeFromActions();     // 自动生成并展示代码（无需手动确认）
       updateRegenLabel();
+      // #12 生成即入缓存：若该表单已保存过，则把最新动作/代码写回缓存，
+      // 使其立即出现在右键/快捷键菜单（无需先执行一次）。未保存的表单仍需先“确认并保存字段”。
+      if (currentEntryId) {
+        lastCode = codeTextEl.value.trim() || lastCode;
+        updateCacheActions(currentEntryId, lastActionsJson, lastCode);
+      }
       setState('selected'); finishSteps(true);
       lastIssues = (msg.issues ?? []) as ValidationIssue[];
       renderIssues();
@@ -1158,20 +1006,12 @@ chrome.runtime.onMessage.addListener((msg: any) => {
     }
 
     case 'validationResult': {
-      lastActionsJson = msg.script;
-      actionsJsonEl.value = prettyActions(msg.script);
-      try { // ref 固化可能改写了 target → 同步代码
-        const acts = parseActionsJson(msg.script);
-        const code = actionsToCode(acts);
-        setCode(code);
-        lastCode = code;
-      } catch { /* ignore */ }
+      // 纯报告：不改动代码区与动作 JSON，只渲染问题（修复交给 🎯 点选或重新生成）
       setState('selected'); finishSteps(true);
       lastIssues = (msg.issues ?? []) as ValidationIssue[];
       renderIssues();
       const bad = lastIssues.filter(i => !i.fixed);
       if (!lastIssues.length) showStatus('success', t('sidepanel.allLocatorsOk'));
-      else if (!bad.length) showStatus('success', t('sidepanel.issuesAutoFixed', { count: lastIssues.length }));
       else showStatus('error', t('sidepanel.issuesNeedAttention', { count: bad.length }));
       break;
     }
@@ -1192,8 +1032,9 @@ chrome.runtime.onMessage.addListener((msg: any) => {
       if (msg.success) {
         finishSteps(true);
         showStatus('success', t('sidepanel.fillSuccess'));
-        // 缓存动作 JSON 与可执行代码（代码为权威可复用内容）
-        if (currentEntryId) updateCacheActions(currentEntryId, lastActionsJson, lastCode);
+        // 缓存动作 JSON 与可执行代码。一键本地/直接生成执行时尚未手动“确认保存字段”，
+        // 此处若无 currentEntryId 则按当前字段/名称/URL 自动建条目，避免填过却没存。
+        persistFilledForm();
         setState('selected');
         // 成功后清空状态区
         setTimeout(() => { hideStatus(); resetSteps(); }, 1500);
@@ -1263,7 +1104,7 @@ async function loadPendingContextSelection() {
     | undefined;
   if (!p) return;
   await chrome.storage.local.remove('pendingContextSelection');
-  if (Date.now() - (p.ts ?? 0) > 20000) return;            // 过期丢弃
+  if (Date.now() - (p.ts ?? 0) > CONFIG.PENDING_TTL_MS) return;            // 过期丢弃
   if (state === 'analyzing' || state === 'generating' || state === 'filling') return; // 繁忙不打断
   selectedSelector = p.selector;
   selectedSelectorEl.textContent = p.selector;
@@ -1282,7 +1123,7 @@ async function loadPendingDebug() {
   const p = r.pendingDebugLoad as { id: string; ts: number } | undefined;
   if (!p) return;
   await chrome.storage.local.remove('pendingDebugLoad');
-  if (Date.now() - (p.ts ?? 0) > 20000) return; // 过期丢弃
+  if (Date.now() - (p.ts ?? 0) > CONFIG.PENDING_TTL_MS) return; // 过期丢弃
   await loadDebugEntry(p.id);
 }
 

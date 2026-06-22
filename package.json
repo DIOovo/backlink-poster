@@ -1,6 +1,6 @@
 {
   "name": "ai-form-filler-crx",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "AI-powered form filler Chrome extension",
   "author": "Elwin Sun",
@@ -8,7 +8,8 @@
   "scripts": {
     "build": "vite build && vite build --config vite.content.config.ts",
     "dev": "vite build --watch",
-    "gen:injected": "node scripts/gen-injected.mjs"
+    "gen:injected": "node scripts/gen-injected.mjs",
+    "test": "tsc src/utils/pwcode.ts --outDir .tmp-test --rootDir src --module commonjs --target es2020 --skipLibCheck --moduleResolution node && node -e \"require('fs').writeFileSync('.tmp-test/package.json','{\\\"type\\\":\\\"commonjs\\\"}')\" && node test/pwcode.test.cjs"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.281",

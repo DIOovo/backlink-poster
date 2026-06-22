@@ -169,7 +169,7 @@ export type BackgroundMessage =
   // 阶段 2 结果：生成的动作 JSON（已自动校验/修复；issues 为校验报告）
   | { type: 'fillGenerated'; script: string; issues?: ValidationIssue[] }
   // 手动校验结果：script 为应用 ref 固化后的动作 JSON
-  | { type: 'validationResult'; script: string; issues: ValidationIssue[] }
+  | { type: 'validationResult'; issues: ValidationIssue[]; script?: string }
   // 通用完成/错误
   | { type: 'fillComplete'; success: boolean; error?: string }
   | { type: 'opError'; error: string }

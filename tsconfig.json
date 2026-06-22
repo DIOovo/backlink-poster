@@ -16,5 +16,7 @@
     "useUnknownInCatchVariables": false,
     "baseUrl": "."
   },
-  "include": ["src"]
+  "include": ["src"],
+  "//": "content.ts 由 vite.content.config.ts(esbuild) 单独打包；它是从 JS 迁移而来、含大量隐式 any，排除以让 tsc 对其余代码可信。用 tsconfig.content.json 可单独宽松检查它。",
+  "exclude": ["src/content.ts"]
 }

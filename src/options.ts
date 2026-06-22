@@ -35,6 +35,12 @@ const apiKeyEl = document.getElementById('api-key') as HTMLInputElement;
 const btnSaveAI = document.getElementById('btn-save-ai')!;
 const aiSaveMsg = document.getElementById('ai-save-msg')!;
 const localeEl = document.getElementById('ui-locale') as HTMLSelectElement;
+const btnOpenShortcuts = document.getElementById('btn-open-shortcuts')!;
+
+// chrome://extensions/shortcuts 无法用 <a href> 直接导航，需用 tabs.create 打开
+btnOpenShortcuts.addEventListener('click', () => {
+  chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+});
 
 const profileList = document.getElementById('profile-list')!;
 const btnAddProfile = document.getElementById('btn-add-profile')!;

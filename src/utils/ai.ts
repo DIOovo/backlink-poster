@@ -1,4 +1,5 @@
 import type { AIConfig, CaptureMode, DetectedField, FillAction, FormAnalysis } from './types';
+import { CONFIG } from './config';
 
 const SYSTEM_PROMPT = `You are a web form automation assistant.
 Given an ARIA accessibility snapshot of a web form and user instructions, output a JSON object describing the actions to fill the form.
@@ -137,7 +138,7 @@ function methodHintForType(type: string): string {
 }
 
 /** 输出上限：表单字段多、文本长，2048 会被截断，统一提到 8192 */
-const MAX_TOKENS = 8192;
+const MAX_TOKENS = CONFIG.AI_MAX_TOKENS;
 
 /** 低层调用结果：完整文本 + 是否因达到 max_tokens 而被截断 */
 interface LLMResult { text: string; truncated: boolean; }

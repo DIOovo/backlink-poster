@@ -14,6 +14,8 @@
 
 import { callAI, detectFields, repairActions } from './utils/ai';
 import { getFingerprint, getAIConfig, getProfile } from './utils/storage';
+import { CONFIG } from './utils/config';
+import { splitStatements, firstActionIndex, chainToSelector, targetToSelector, type Segment } from './utils/pwcode';
 import { initI18n, t, onLocaleChange } from './i18n';
 import type {
   AIConfig, CaptureMode, DetectedField, FillAction, FillTarget,
@@ -38,37 +40,39 @@ chrome.action.onClicked.addListener(async (tab) => {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   (async () => {
     try {
+      // 按 tabId 加锁（无 tab 的纯 AI 操作用 'ai' 键），避免不同标签互相阻塞
+      const lockKey = (message as any).tabId ?? 'ai';
       switch (message.type) {
         case 'startSelection':
           await handleStartSelection(message.tabId);
           sendResponse({ ok: true });
           break;
         case 'snapshotForm':
-          await withLock(() => handleSnapshotForm(message));
+          await withLock(lockKey, () => handleSnapshotForm(message));
           sendResponse({ ok: true });
           break;
         case 'analyzeForm':
-          await withLock(() => handleAnalyzeForm(message));
+          await withLock(lockKey, () => handleAnalyzeForm(message));
           sendResponse({ ok: true });
           break;
         case 'localAnalyzeForm':
-          await withLock(() => handleLocalAnalyzeForm(message));
+          await withLock(lockKey, () => handleLocalAnalyzeForm(message));
           sendResponse({ ok: true });
           break;
         case 'generateFill':
-          await withLock(() => handleGenerateFill(message));
+          await withLock(lockKey, () => handleGenerateFill(message));
           sendResponse({ ok: true });
           break;
         case 'localGenerateFill':
-          await withLock(() => handleLocalGenerateFill(message));
+          await withLock(lockKey, () => handleLocalGenerateFill(message));
           sendResponse({ ok: true });
           break;
         case 'executeFill':
-          await withLock(() => handleExecuteFill(message));
+          await withLock(lockKey, () => handleExecuteFill(message));
           sendResponse({ ok: true });
           break;
         case 'validateActions':
-          await withLock(() => handleValidateActions(message));
+          await withLock(lockKey, () => handleValidateActions(message));
           sendResponse({ ok: true });
           break;
         default:
@@ -83,16 +87,27 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return true; // keep message channel open for async
 });
 
-// ── Execution lock ─────────────────────────────────────────────────────────
+// ── Execution lock（按 tab 维度，带失效超时）─────────────────────────────────
+// 记录每个键当前持锁的时间戳；正常完成会删除锁；若某操作异常未释放，超过
+// CONFIG.LOCK_STALE_MS 后视为陈旧锁，允许新操作进行，避免单次卡死拖垮整个键。
 
-let executionLock = false;
+const tabLocks = new Map<string | number, number>();
 
-function withLock<T>(fn: () => Promise<T>): Promise<T> {
-  if (executionLock) {
+function isLocked(key: string | number): boolean {
+  const lockedAt = tabLocks.get(key);
+  return lockedAt != null && (Date.now() - lockedAt) < CONFIG.LOCK_STALE_MS;
+}
+
+async function withLock<T>(key: string | number, fn: () => Promise<T>): Promise<T> {
+  if (isLocked(key)) {
     throw new Error(t('background.busy'));
   }
-  executionLock = true;
-  return fn().finally(() => { executionLock = false; });
+  tabLocks.set(key, Date.now());
+  try {
+    return await fn();
+  } finally {
+    tabLocks.delete(key);
+  }
 }
 
 // ── Content script 桥 ──────────────────────────────────────────────────────
@@ -183,7 +198,7 @@ function streamTo(phase: 'detect' | 'generate') {
   let last = 0;
   return (text: string) => {
     const now = Date.now();
-    if (now - last < 70) return;
+    if (now - last < CONFIG.AI_STREAM_THROTTLE_MS) return;
     last = now;
     broadcast({ type: 'aiStream', phase, text });
   };
@@ -282,13 +297,14 @@ async function handleLocalGenerateFill(message: {
   broadcast({ type: 'fillGenerated', script: JSON.stringify({ actions }), issues });
 }
 
-// 手动校验动作 JSON（count 检查 + ref 固化；不调 AI）
+// 手动校验动作 JSON：仅做 count 检查并报告问题，绝不改动用户的代码/定位
+// （ref 固化与 AI 修复只在“生成”阶段自动进行；手动校验保持只读，避免误改）
 async function handleValidateActions(message: { tabId: number; actionsJson: string; scopeSelector?: string }) {
   const actions = parseActionList(message.actionsJson);
   if (!actions) throw new Error(t('background.errInvalidActionsJson'));
   progress('Validating locators...', 1, 1);
-  const { actions: fixed, issues } = await validateAndFix(message.tabId, message.scopeSelector ?? '', actions, null);
-  broadcast({ type: 'validationResult', script: JSON.stringify({ actions: fixed }), issues });
+  const issues = await validateActionList(message.tabId, message.scopeSelector ?? '', actions);
+  broadcast({ type: 'validationResult', issues });
 }
 
 // 阶段 3：执行 Playwright 代码（以代码区为准；缓存由侧边栏在成功后写入）
@@ -306,7 +322,7 @@ async function runOnTab(tabId: number, code: string, scopeSelector?: string): Pr
 // ── 执行器：定位链 → playwright selector → content 内执行 ────────────────────
 
 /** 单步超时（毫秒） */
-const EXEC_TIMEOUT = 5000;
+const EXEC_TIMEOUT = CONFIG.EXEC_STEP_TIMEOUT_MS;
 
 type StepCallback = (index: number, total: number, label: string) => void;
 
@@ -384,101 +400,8 @@ async function execStep(
 }
 
 // ── 定位链 → playwright selector 转换 ────────────────────────────────────────
-// playwright 的 locator 链本质是用 " >> " 连接的 selector 字符串：
-//   page.getByText('Q').locator('..').getByRole('radio', { name: 'No' }).first()
-//   → internal:text="Q"i >> xpath=.. >> internal:role=radio[name="No"i] >> nth=0
-// 转义规则与 playwright-core utils/isomorphic/{locatorUtils,stringUtils}.ts 保持一致（vendored）。
-
-function escTextSel(text: any, exact: boolean): string {
-  if (typeof text !== 'string') return String(text); // RegExp：原样字符串化（/pat/flags）
-  return `${JSON.stringify(text)}${exact ? 's' : 'i'}`;
-}
-function escAttrSel(value: any, exact: boolean): string {
-  if (typeof value !== 'string') return String(value);
-  return `"${value.replace(/\\/g, '\\\\').replace(/["]/g, '\\"')}"${exact ? 's' : 'i'}`;
-}
-
-function roleSelector(role: string, options: any = {}): string {
-  const props: string[] = [];
-  for (const key of ['checked', 'disabled', 'selected', 'expanded', 'pressed'] as const) {
-    if (options[key] !== undefined) props.push(`[${key}=${String(options[key])}]`);
-  }
-  if (options.includeHidden !== undefined) props.push(`[include-hidden=${String(options.includeHidden)}]`);
-  if (options.level !== undefined) props.push(`[level=${String(options.level)}]`);
-  if (options.name !== undefined) props.push(`[name=${escAttrSel(options.name, !!options.exact)}]`);
-  return `internal:role=${role}${props.join('')}`;
-}
-function attrTextSelector(attr: string, text: any, options?: any): string {
-  return `internal:attr=[${attr}=${escAttrSel(text, !!options?.exact)}]`;
-}
-
-/** 单个链段 → selector 片段（数组：locator(sel,{hasText}) 会产出两段）；不支持的方法抛错 */
-function segToSelectorParts(seg: Segment): string[] {
-  const a0 = seg.args[0];
-  const a1 = seg.args[1];
-  switch (seg.name) {
-    case 'locator': {
-      if (typeof a0 !== 'string') throw new Error('locator() 参数必须是字符串');
-      const parts = [safeCssSelector(a0)];
-      if (a1 && typeof a1 === 'object') {
-        if (a1.hasText !== undefined) parts.push('internal:has-text=' + escTextSel(a1.hasText, false));
-        if (a1.hasNotText !== undefined) parts.push('internal:has-not-text=' + escTextSel(a1.hasNotText, false));
-        if (a1.has !== undefined || a1.hasNot !== undefined) throw new Error('locator() 的 has/hasNot 选项暂不支持');
-      }
-      return parts;
-    }
-    case 'getByRole':      return [roleSelector(String(a0 ?? ''), a1 ?? {})];
-    case 'getByText':      return ['internal:text=' + escTextSel(a0, !!a1?.exact)];
-    case 'getByLabel':     return ['internal:label=' + escTextSel(a0, !!a1?.exact)];
-    case 'getByPlaceholder': return [attrTextSelector('placeholder', a0, a1)];
-    case 'getByAltText':   return [attrTextSelector('alt', a0, a1)];
-    case 'getByTitle':     return [attrTextSelector('title', a0, a1)];
-    case 'getByTestId':    return [`internal:testid=[data-testid=${escAttrSel(a0, true)}]`];
-    case 'filter': {
-      const parts: string[] = [];
-      if (a0 && typeof a0 === 'object') {
-        if (a0.hasText !== undefined) parts.push('internal:has-text=' + escTextSel(a0.hasText, false));
-        if (a0.hasNotText !== undefined) parts.push('internal:has-not-text=' + escTextSel(a0.hasNotText, false));
-      }
-      if (!parts.length) throw new Error('filter() 仅支持 hasText/hasNotText');
-      return parts;
-    }
-    case 'first': return ['nth=0'];
-    case 'last':  return ['nth=-1'];
-    case 'nth':   return [`nth=${Number(a0) || 0}`];
-    default:
-      throw new Error(`定位链不支持 .${seg.name}()（无 debugger 执行模式）`);
-  }
-}
-
-/** 定位段序列 → playwright selector 字符串 */
-function chainToSelector(segs: Segment[]): string {
-  const parts: string[] = [];
-  for (const seg of segs) {
-    if (!seg.call) throw new Error(`定位链不支持属性访问 .${seg.name}`);
-    parts.push(...segToSelectorParts(seg));
-  }
-  if (!parts.length) throw new Error('空定位链');
-  return parts.join(' >> ');
-}
-
-/** 结构化 target → playwright selector（与侧边栏 locatorCode 语义一致） */
-function targetToSelector(t: FillTarget): string {
-  switch (t.by) {
-    case 'label':       return 'internal:label=' + escTextSel(t.value, false);
-    case 'placeholder': return attrTextSelector('placeholder', t.value);
-    case 'role':        return t.value
-                          ? roleSelector(t.role || 'textbox', { name: t.value })
-                          : roleSelector(t.role || 'textbox') + ' >> nth=0';
-    case 'text':        return 'internal:text=' + escTextSel(t.value, false);
-    case 'altText':     return attrTextSelector('alt', t.value);
-    case 'title':       return attrTextSelector('title', t.value);
-    case 'name':        return `[name="${String(t.value).replace(/(["\\])/g, '\\$1')}"]`;
-    case 'id':          return `[id="${String(t.value).replace(/(["\\])/g, '\\$1')}"]`;
-    case 'css':
-    default:            return safeCssSelector(t.value);
-  }
-}
+// 选择器编码（target/链 → playwright selector）已抽到 utils/pwcode.ts，与侧边栏的
+// 代码生成共享同一套语义，避免两端漂移。以下仅保留依赖本地 JS 字面量分词器的部分。
 
 /** raw 定位链（可含动作段，自动截断）→ playwright selector */
 function rawToSelector(raw: string): string {
@@ -497,42 +420,8 @@ function truncate(s: string, n: number): string {
   return t.length > n ? t.slice(0, n) + '…' : t;
 }
 
-/**
- * 把单一 #id 形式且含 CSS 不安全字符（/ : . 空格 等）的选择器改写为 [id="..."]，
- * 防止 playwright 解析 CSS 时报 "Unexpected token"。非 #id 形式（text=/xpath= 等）原样返回。
- */
-function safeCssSelector(sel: string): string {
-  const s = String(sel ?? '').trim();
-  const m = s.match(/^#([^\s>+~,\[\]()]+)$/);
-  if (m && /[^A-Za-z0-9_-]/.test(m[1])) {
-    return `[id="${m[1].replace(/(["\\])/g, '\\$1')}"]`;
-  }
-  return s;
-}
-
-// ── Playwright 代码解析（语句切分 + 链式解析；执行与校验共用）────────────────
-
-/** 按顶层分号切分（引号 ' " ` 内的分号不切分） */
-function splitStatements(code: string): string[] {
-  const out: string[] = [];
-  let buf = '', quote: string | null = null;
-  for (let i = 0; i < code.length; i++) {
-    const c = code[i];
-    if (quote) {
-      buf += c;
-      if (c === '\\') { buf += code[i + 1] ?? ''; i++; continue; }
-      if (c === quote) quote = null;
-      continue;
-    }
-    if (c === '\'' || c === '"' || c === '`') { quote = c; buf += c; continue; }
-    if (c === ';') { out.push(buf); buf = ''; continue; }
-    buf += c;
-  }
-  if (buf.trim()) out.push(buf);
-  return out.map(s => s.trim()).filter(s => s && !s.startsWith('//'));
-}
-
-interface Segment { name: string; call: boolean; args: any[]; }
+// ── Playwright 代码解析（JS 字面量分词器；执行与校验共用）────────────────────
+// splitStatements / chainToSelector / firstActionIndex / Segment 等已抽到 utils/pwcode.ts。
 
 /** 解析一条语句为链段序列（base 必须是 page） */
 function parseChain(stmt: string): Segment[] {
@@ -677,20 +566,6 @@ function parseObject(s: string, i: number): { value: any; end: number } {
     if (s[i] === '}') return { value: obj, end: i + 1 };
     throw new Error('Object parse error');
   }
-}
-
-/** 动作方法名（链中第一个动作段之前为纯定位链） */
-const ACTION_METHOD_NAMES = new Set([
-  'fill', 'selectOption', 'check', 'uncheck', 'setChecked', 'click', 'dblclick',
-  'press', 'pressSequentially', 'type', 'clear', 'setInputFiles', 'hover',
-  'focus', 'blur', 'tap', 'dragTo', 'selectText', 'scrollIntoViewIfNeeded',
-  // 调试用低层事件：locator.mousedown()/mouseup()/… 与 Playwright 原生 dispatchEvent()
-  'mousedown', 'mouseup', 'mousemove', 'pointerdown', 'pointerup', 'pointermove', 'dispatchEvent',
-]);
-
-/** 链中第一个动作方法的下标；无动作段返回 -1 */
-function firstActionIndex(segs: Segment[]): number {
-  return segs.findIndex(s => s.call && ACTION_METHOD_NAMES.has(s.name));
 }
 
 // ── 定位校验 + aria-ref 固化 + AI 自修复 ─────────────────────────────────────
@@ -982,7 +857,7 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
 // 右键选取 DOM 后：算 domHash，命中缓存且有代码则自动执行
 async function handleContextSelected(tabId: number, selector: string): Promise<void> {
   try {
-    await withLock(async () => {
+    await withLock(tabId, async () => {
       progress(t('background.readingRegion'), 1, 1);
       const { plain, ref } = await captureSnapshot(tabId, selector);
       const domHash = getFingerprint(plain);
@@ -991,7 +866,7 @@ async function handleContextSelected(tabId: number, selector: string): Promise<v
       const entry = (await readFormCache()).find(e => matchesUrl(e.urlPattern, url) && e.domHash === domHash);
       if (entry?.code) {
         // 命中且有可执行代码：直接自动填充（rebase 到刚选中的容器内）
-          await runCode(tabId, entry.code, (i, n, l) => progress(t('background.progressStep', { step: i, total: n, label: l }), selector));
+        await runCode(tabId, entry.code, (i, n, l) => progress(t('background.progressStep', { step: i, total: n, label: l })), selector);
         broadcast({ type: 'fillComplete', success: true });
         toastTab(tabId, t('background.fillSuccess', { name: entry.formName }), 'success');
       } else {
@@ -1022,7 +897,7 @@ async function fillFromCache(tabId: number, entry: FormCacheEntry): Promise<void
     return;
   }
   try {
-    await withLock(() => runOnTab(tabId, entry.code!, entry.selector));
+    await withLock(tabId, () => runOnTab(tabId, entry.code!, entry.selector));
     broadcast({ type: 'fillComplete', success: true });
     toastTab(tabId, t('background.fillSuccess', { name: entry.formName }), 'success');
   } catch (e: any) {

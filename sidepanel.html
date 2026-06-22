@@ -330,7 +330,7 @@
       </div>
       <div class="mode-hint" data-i18n="sidepanel.generateHint">Local = build locators &amp; values from the DOM in your browser (no AI; values are sensible defaults that respect length rules). AI = generate via the model.</div>
       <div class="collapsible-header sub-toggle" id="actions-toggle">
-        <span class="caret" id="actions-caret">▸</span> <span data-i18n="sidepanel.actionJson">Action JSON (editable)</span>
+        <span class="caret" id="actions-caret">▸</span> <span data-i18n="sidepanel.actionJson">Action JSON (read-only)</span>
       </div>
       <div class="collapsible-body collapsed" id="actions-body">
         <textarea class="json-area" id="actions-json" spellcheck="false"></textarea>
@@ -351,7 +351,7 @@
           <button class="rec-fab" id="rec-fab" data-i18n-title="sidepanel.recFabTitle" title="Record page actions and insert here">⏺</button>
         </div>
       </div>
-      <div class="fields-hint" style="margin-top:6px;" data-i18n="sidepanel.codeSyncHint">Editing code syncs back to the Action JSON above; execution uses this code.</div>
+      <div class="fields-hint" style="margin-top:6px;" data-i18n="sidepanel.codeSyncHint">The Action JSON above is a read-only view derived from this code; execution always uses this code.</div>
       <div class="issues-list" id="issues-list">
         <div class="issues-title" data-i18n="sidepanel.issuesTitle">Locator check report</div>
         <div id="issues-rows"></div>

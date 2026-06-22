@@ -1,0 +1,10 @@
+{
+  "//": "宽松检查 content.ts（由 JS 迁移而来）。运行：npx tsc -p tsconfig.content.json --noEmit。逐步补类型后可收紧。",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noImplicitAny": false,
+    "strict": false
+  },
+  "include": ["src/content.ts"],
+  "exclude": []
+}

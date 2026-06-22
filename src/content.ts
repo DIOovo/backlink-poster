@@ -4,6 +4,7 @@
  */
 
 import { initI18n, t, onLocaleChange } from './i18n';
+import { CONFIG } from './utils/config';
 
 (function () {
   'use strict';
@@ -34,7 +35,7 @@ import { initI18n, t, onLocaleChange } from './i18n';
   let tooltipEl = null;
 
   // outerHTML 长度上限（清洗后），避免超大页面撑爆 token
-  const MAX_HTML_LEN = 80000;
+  const MAX_HTML_LEN = CONFIG.MAX_HTML_LEN;
 
   // ── DOM helpers ─────────────────────────────────────────────────────────
 
@@ -729,7 +730,8 @@ import { initI18n, t, onLocaleChange } from './i18n';
 
   // ── 页面内快速菜单 + 提示条（快捷键触发）──────────────────────────────────────
 
-  // 记录最近鼠标位置，使快捷键菜单在鼠标处弹出
+  // 记录最近鼠标位置，使快捷键菜单在鼠标处弹出。内容脚本随页面常驻注入，
+  // 此监听从页面加载即生效，故首次按快捷键也能拿到光标位置。
   let lastMouse = { x: Math.round(window.innerWidth / 2), y: Math.round(window.innerHeight / 3) };
   window.addEventListener('mousemove', (e) => { lastMouse = { x: e.clientX, y: e.clientY }; }, { passive: true, capture: true });
 
@@ -837,7 +839,7 @@ import { initI18n, t, onLocaleChange } from './i18n';
     ].join(';');
     t.textContent = text;
     if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { if (t) t.remove(); }, kind === 'error' ? 6000 : 3000);
+    toastTimer = setTimeout(() => { if (t) t.remove(); }, kind === 'error' ? CONFIG.TOAST_ERROR_MS : CONFIG.TOAST_MS);
   }
 
   // ── Action recorder（自研：捕获用户真实操作 → 结构化动作）────────────────────
@@ -1160,7 +1162,7 @@ import { initI18n, t, onLocaleChange } from './i18n';
 
   // 方案 B：跨步骤「刚打开下拉、下一次 click 很可能是选项」的标记（带时间窗，防止过期误判）
   let expectingOptionUntil = 0;
-  function armExpectingOption() { expectingOptionUntil = Date.now() + 8000; }
+  function armExpectingOption() { expectingOptionUntil = Date.now() + CONFIG.EXPECT_OPTION_MS; }
   function clearExpectingOption() { expectingOptionUntil = 0; }
   function expectingOption() { return Date.now() < expectingOptionUntil; }
 
@@ -1631,7 +1633,7 @@ import { initI18n, t, onLocaleChange } from './i18n';
   async function pwExecStep(msg) {
     const injected = pwInjected();
     if (!injected) return { ok: false, error: 'Playwright injected 未初始化（请刷新页面）' };
-    const timeout = Number(msg.timeout) || 5000;
+    const timeout = Number(msg.timeout) || CONFIG.EXEC_STEP_TIMEOUT_MS;
     const deadline = Date.now() + timeout;
 
     // 页面级键盘动作：作用于当前焦点元素
@@ -1740,7 +1742,7 @@ import { initI18n, t, onLocaleChange } from './i18n';
           : `元素未达到可操作状态（等待 ${lastState}）`;
         return { ok: false, error: `Timeout ${timeout}ms exceeded: ${what}\nselector: ${msg.selector}` };
       }
-      await sleepMs(100);
+      await sleepMs(CONFIG.POLL_INTERVAL_MS);
     }
   }
 
@@ -1778,7 +1780,7 @@ import { initI18n, t, onLocaleChange } from './i18n';
       window.focus(); // 此时有用户激活，确保焦点落到页面文档
       finish(true);
     }, { once: true });
-    fillGateTimer = setTimeout(() => finish(false), 60000); // 60s 未点击则取消
+    fillGateTimer = setTimeout(() => finish(false), CONFIG.FILL_GATE_MS); // 60s 未点击则取消
     document.documentElement.appendChild(el);
     fillGateEl = el;
   }
