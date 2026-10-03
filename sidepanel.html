@@ -15,7 +15,8 @@
     main { padding:0 16px 24px; }
     section { padding:20px 0; border-bottom:1px solid var(--line); }
     label { display:block; margin:10px 0 5px; font-weight:550; }
-    input:not([type=checkbox]), textarea { display:block; width:100%; font:inherit; padding:9px 10px; border:1px solid #bbc2cd; border-radius:6px; color:var(--ink); background:white; caret-color:var(--accent); }
+    input:not([type=checkbox]):not([type=radio]), textarea { display:block; width:100%; font:inherit; padding:9px 10px; border:1px solid #bbc2cd; border-radius:6px; color:var(--ink); background:white; caret-color:var(--accent); }
+    input[type=radio] { width:16px; height:16px; accent-color:var(--accent); }
     textarea { min-height:120px; resize:vertical; }
     .check { display:flex; align-items:center; gap:7px; font-weight:400; }
     input[type=checkbox] { width:16px; height:16px; accent-color:var(--accent); margin:0; }
@@ -30,6 +31,14 @@
     .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
     .actions > .primary { flex:1; }
     .hint { color:var(--muted); font-size:12px; margin:6px 0; }
+    .dropzone { border:1px dashed #9aa4b2; border-radius:8px; padding:14px; text-align:center; background:#fff; transition:.15s ease; }
+    .dropzone.dragover { border-color:var(--accent); background:#eef2ff; }
+    .import-summary { margin-top:10px; padding:10px; border:1px solid var(--line); border-radius:7px; background:#fff; }
+    .import-summary dl { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin:8px 0 0; }
+    .import-summary dt { color:var(--muted); font-size:10px; } .import-summary dd { margin:0; font-weight:650; }
+    .radio-row { display:flex; gap:14px; flex-wrap:wrap; margin:8px 0; }
+    .radio-row label { display:flex; align-items:center; gap:6px; margin:0; font-weight:400; }
+    .invalid-list { margin:7px 0 0; padding-left:18px; color:#b42318; font-size:11px; }
     #notice { color:#b42318; white-space:pre-wrap; overflow-wrap:anywhere; margin:12px 0 0; }
     #notice:empty { display:none; }
     #summary { font-variant-numeric:tabular-nums; margin:12px 0 6px; }
@@ -45,6 +54,7 @@
     .status { font-size:10px; font-weight:650; letter-spacing:.01em; }
     .SUCCESS { color:#15743b; } .PENDING_MODERATION { color:#855500; } .RUNNING { color:#4338ca; }
     .SUBMIT_FAILED,.AI_FAILED,.LOAD_FAILED,.FORM_NOT_FOUND { color:#b42318; }
+    .CONTENT_GENERATION_FAILED { color:#b42318; }
     details { margin-top:5px; } summary { cursor:pointer; color:var(--muted); } details p { white-space:pre-wrap; }
     .small { font-size:11px; padding:3px 6px; min-height:28px; margin-top:6px; }
     #output { overflow-wrap:anywhere; white-space:pre-wrap; }
@@ -63,11 +73,27 @@
       <label class="check"><input id="remember" type="checkbox" checked />Remember identity</label>
     </section>
     <section aria-labelledby="tasks-heading">
-      <h2 id="tasks-heading">Tasks</h2>
+      <h2 id="tasks-heading">Import URLs</h2>
+      <div id="excel-upload" class="dropzone">
+        <button id="upload-excel" type="button">Upload Excel</button>
+        <input id="xlsx-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden />
+        <p class="hint">Choose or drop an .xlsx file. The first column must contain one URL per row.</p>
+      </div>
+      <div id="import-summary" class="import-summary" hidden></div>
       <label for="tasks">Paste URL + Content</label>
       <p class="hint" id="format-hint">每行一条：URL、Tab 分隔符、Content。多行正文请用 CSV 导入，表头为 url,content。</p>
       <textarea id="tasks" aria-describedby="format-hint" placeholder="https://example.com/post&#9;Your comment" spellcheck="false"></textarea>
       <div class="actions"><button id="preview" type="button">Preview tasks</button><button id="import" type="button">Import CSV</button><input id="csv-file" type="file" accept=".csv,text/csv" hidden /></div>
+      <h2 style="margin-top:18px">Content Mode</h2>
+      <div class="radio-row" role="radiogroup" aria-label="Content Mode">
+        <label><input id="content-mode-csv" name="content-mode" type="radio" value="csv" checked />Use CSV Content</label>
+        <label><input id="content-mode-ai" name="content-mode" type="radio" value="ai" />Generate with AI</label>
+      </div>
+      <div id="ai-prompt-wrap" hidden>
+        <label for="comment-generation-prompt">Comment Generation Prompt</label>
+        <textarea id="comment-generation-prompt" placeholder="Describe what to mention, required product name and URL, tone, language, length, and other requirements."></textarea>
+        <p class="hint">Saved locally. Each URL is loaded first, then gets its own article-specific comment.</p>
+      </div>
       <p class="hint">Concurrency: 1 · 自动填写并提交，每条完成后保存截图。</p>
       <div class="actions"><button class="primary" id="start" type="button" disabled>Start Batch</button><button id="pause" type="button" disabled>Pause</button><button id="stop" class="danger" type="button" disabled>Stop</button></div>
       <p id="summary" role="status" aria-live="polite">Progress: 0 / 0 · IDLE</p>

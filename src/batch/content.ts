@@ -1,5 +1,6 @@
 import { validateDetection, type Detection, type Evidence, type FieldKey, type Identity } from './model';
 import { selectReplyEntry, type ReplyCandidateDescriptor } from './reply';
+import { extractArticleContext } from './article-context';
 
 type Bridge = {
   selector(el: Element): string;
@@ -193,6 +194,7 @@ export function setupBatchContent(bridge: Bridge) {
     if (!String(msg?.type).startsWith('batchPage:')) return;
     (async () => {
       switch (msg.type) {
+        case 'batchPage:articleContext': return { context: extractArticleContext(document, location.href) };
         case 'batchPage:detect': return { detection: localDetect(), challenge: challenge() };
         case 'batchPage:findReply': return localReplyEntry() || { found: false };
         case 'batchPage:activateReply': {

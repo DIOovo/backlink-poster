@@ -1,6 +1,7 @@
 import { detectBatchForm } from '../utils/ai';
 import { getAIConfig } from '../utils/storage';
 import { writeCsv, writeScreenshot } from '../utils/native';
+import { generateComment } from './comment-generator';
 import {
   EMPTY_BATCH, EMPTY_IDENTITY, defaultFolder, errorText, isBusy, resultsCSV, screenshotName, validateFolder, validateUrl,
   type BatchData, type BatchTask, type Detection, type EntryDetection, type Identity, type TaskStatus,
@@ -161,6 +162,26 @@ async function detect(tabId: number, task: BatchTask): Promise<Detection> {
   task.error ||= 'Reply activated but comment form not found.';
   return { found: false };
 }
+async function prepareTaskContent(tabId: number, task: BatchTask) {
+  task.contentSource ||= 'CSV';
+  if (task.contentSource !== 'AI') return;
+  if (task.generationStatus === 'SUCCESS' && task.generatedContent?.trim()) {
+    task.content = task.generatedContent;
+    return;
+  }
+  const prompt = data.batchRun?.commentGenerationPrompt?.trim();
+  if (!prompt) throw new Error('Comment Generation Prompt is required.');
+  const config = await getAIConfig();
+  if (!config?.apiKey || !config.model) throw new Error('AI comment generation needs Provider, Model and API Key in Settings.');
+  task.phase = 'extracting'; await persist();
+  const extracted = await page(tabId, 'articleContext');
+  task.phase = 'generating'; await persist();
+  const generated = await generateComment(config, { ...extracted.context, userPrompt: prompt });
+  task.generatedContent = generated;
+  task.content = generated;
+  task.generationStatus = 'SUCCESS';
+  await persist();
+}
 async function observe(tabId: number, task: BatchTask) {
   const end = Date.now() + 15000;
   let lastError = '';
@@ -223,6 +244,11 @@ async function executeTask(task: BatchTask, index: number) {
   try {
     const tab = await ensureTab();
     await navigate(tab.id!, task.url);
+    if ((task.contentSource || 'CSV') === 'AI') {
+      failure = 'CONTENT_GENERATION_FAILED';
+      try { await prepareTaskContent(tab.id!, task); }
+      catch (e) { task.generationStatus = 'FAILED'; throw e; }
+    } else task.contentSource = 'CSV';
     task.phase = 'detecting'; await persist();
     failure = 'FORM_NOT_FOUND';
     let detection: Detection;
@@ -280,7 +306,8 @@ async function recover() {
       task.status = result.status;
       if (result.error) appendError(task, result.error);
     } else {
-      task.status = task.phase === 'loading' ? 'LOAD_FAILED' : 'SUBMIT_FAILED';
+      task.status = task.phase === 'loading' ? 'LOAD_FAILED' : ['extracting', 'generating'].includes(task.phase || '') ? 'CONTENT_GENERATION_FAILED' : 'SUBMIT_FAILED';
+      if (task.status === 'CONTENT_GENERATION_FAILED') task.generationStatus = 'FAILED';
       appendError(task, 'Background was interrupted. This task was not resubmitted to avoid duplicate posts.');
     }
   }
@@ -300,7 +327,10 @@ async function run() {
       // A browser/extension restart loses tab ownership. Do not navigate or capture an unrelated tab.
       for (const task of data.batchTasks) {
         if (task.status === 'RUNNING' || task.phase === 'screenshot') {
-          if (task.status === 'RUNNING') task.status = 'SUBMIT_FAILED';
+          if (task.status === 'RUNNING') {
+            task.status = ['extracting', 'generating'].includes(task.phase || '') ? 'CONTENT_GENERATION_FAILED' : task.phase === 'loading' ? 'LOAD_FAILED' : 'SUBMIT_FAILED';
+            if (task.status === 'CONTENT_GENERATION_FAILED') task.generationStatus = 'FAILED';
+          }
           appendError(task, 'Browser or extension restarted. Submission could not be verified; this task will not be resubmitted. Screenshot unavailable after restart.');
           task.phase = 'done'; task.completedAt = Date.now(); delete task.baseline;
         }
@@ -343,8 +373,9 @@ async function command(msg: any) {
       if (isBusy(data.batchState) || executing) throw new Error('Finish or stop the active batch before importing tasks.');
       if (!Array.isArray(msg.tasks) || !msg.tasks.length) throw new Error('Import at least one task.');
       data.batchTasks = msg.tasks.map((task: any) => {
-        if (typeof task.content !== 'string' || !task.content.trim()) throw new Error('Every task needs Content.');
-        return { id: crypto.randomUUID(), url: validateUrl(task.url), content: task.content.replace(/\r\n/g, '\n'), status: 'READY' };
+        const contentSource = task.contentSource === 'AI' ? 'AI' : 'CSV';
+        if (contentSource === 'CSV' && (typeof task.content !== 'string' || !task.content.trim())) throw new Error('Every CSV task needs Content.');
+        return { id: crypto.randomUUID(), url: validateUrl(task.url), content: contentSource === 'CSV' ? task.content.replace(/\r\n/g, '\n') : '', contentSource, status: 'READY' };
       });
       data.batchState = 'IDLE'; data.currentTaskIndex = 0; delete data.batchRun;
       await persist(); break;
@@ -356,7 +387,10 @@ async function command(msg: any) {
         const settings = await chrome.storage.local.get('screenshotFolder');
         const base = validateFolder(settings.screenshotFolder || defaultFolder());
         const id = `${new Date().toISOString().replace(/[:.]/g, '-')}-${crypto.randomUUID().slice(0, 8)}`;
-        data.batchRun = { id, folder: `${base}/${id}`, windowId: msg.windowId };
+        const needsGeneration = data.batchTasks.some(t => t.status === 'READY' && t.contentSource === 'AI');
+        const commentGenerationPrompt = needsGeneration ? String(msg.commentGenerationPrompt || '').trim() : undefined;
+        if (needsGeneration && !commentGenerationPrompt) throw new Error('Comment Generation Prompt is required.');
+        data.batchRun = { id, folder: `${base}/${id}`, windowId: msg.windowId, commentGenerationPrompt };
       }
       // Resuming a stopped batch re-exports the (now longer) CSV into the same batch folder.
       delete data.batchRun.resultsFilename; delete data.batchRun.error;

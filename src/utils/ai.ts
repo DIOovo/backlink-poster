@@ -445,6 +445,13 @@ async function callOpenAI(config: AIConfig, system: string, userMessage: string,
   return { text: (choice?.message?.content ?? '') as string, truncated: choice?.finish_reason === 'length' };
 }
 
+/** Reuse the configured provider for feature-specific prompts without sharing prompt logic. */
+export async function requestAIText(config: AIConfig, system: string, userMessage: string): Promise<string> {
+  const { text, truncated } = await dispatch(config, system, userMessage);
+  if (truncated) throw new Error('AI response was truncated.');
+  return text;
+}
+
 /** Batch mode only classifies a direct form or one reply entry control. It never generates content. */
 export async function detectBatchForm(config: AIConfig, snapshot: string): Promise<EntryDetection> {
   const { text, truncated } = await dispatch(config,

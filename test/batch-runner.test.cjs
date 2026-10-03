@@ -65,6 +65,7 @@ async function environment(initial={}, session={}, options={}) {
     switch(msg.type){
      case 'batchPage:detect':return {detection:tab.url.includes('noform') && !(replyActivated && options.formAfterReply)?{found:false}:detection};
      case 'batchPage:findReply':return options.replyResponse || {found:false};
+     case 'batchPage:articleContext':return {context:options.contextForUrl ? options.contextForUrl(tab.url) : {url:tab.url,title:'Article title',description:'Article description',h1:'Article heading',articleText:'Article body'}};
      case 'batchPage:activateReply':
       replyClicks.push(msg.locator);
       if(options.replyActivationError)return {ok:false,error:options.replyActivationError};
@@ -181,6 +182,52 @@ async function environment(initial={}, session={}, options={}) {
   assert.match(env.local.values.batchTasks[0].error||'',/FILE_SAVE_FAILED/);
   assert.match(env.local.values.batchRun.error||'',/FILE_SAVE_FAILED/);
   assert.equal(Object.keys(env.nativeFiles).length,0);
+ });
+ await test('CSV mode never calls the Comment Generator',async()=>{
+  const oldFetch=global.fetch;let requests=0;global.fetch=async()=>{requests++;throw new Error('unexpected AI request')};
+  try {
+   const env=await environment({aiConfig:{provider:'custom',model:'test-model',baseUrl:'https://ai.example/v1',apiKey:'test-key'}});
+   await env.send('import',{tasks:[task()]});await env.send('start',{identity:{},windowId:1});await env.wait(()=>env.local.values.batchRun?.resultsFilename);
+   assert.equal(env.local.values.batchTasks[0].status,'SUCCESS');assert.equal(env.local.values.batchTasks[0].contentSource,'CSV');assert.equal(requests,0);
+  } finally {global.fetch=oldFetch}
+ });
+ await test('AI mode generates and binds distinct comments for consecutive articles',async()=>{
+  const oldFetch=global.fetch;const requests=[];
+  global.fetch=async(_url,init)=>{const body=JSON.parse(init.body);const message=body.messages[1].content;requests.push(message);const content=message.includes('Alpha article')?'Alpha-specific comment':'Beta-specific comment';return {ok:true,json:async()=>({choices:[{message:{content},finish_reason:'stop'}]})}};
+  try {
+   const aiConfig={provider:'custom',model:'test-model',baseUrl:'https://ai.example/v1',apiKey:'test-key'};
+   const env=await environment({aiConfig},{},{contextForUrl:url=>url.endsWith('/a')?{url,title:'Alpha article',description:'',h1:'Alpha',articleText:'Alpha topic'}:{url,title:'Beta article',description:'',h1:'Beta',articleText:'Beta topic'}});
+   await env.send('import',{tasks:[{url:'https://example.com/a',content:'',contentSource:'AI'},{url:'https://example.com/b',content:'',contentSource:'AI'}]});
+   await env.send('start',{identity:{},commentGenerationPrompt:'Write a topical comment.',windowId:1});await env.wait(()=>env.local.values.batchRun?.resultsFilename);
+   assert.deepEqual(env.local.values.batchTasks.map(t=>t.status),['SUCCESS','SUCCESS']);
+   assert.deepEqual(env.local.values.batchTasks.map(t=>t.generatedContent),['Alpha-specific comment','Beta-specific comment']);
+   assert.deepEqual(env.local.values.batchTasks.map(t=>t.generationStatus),['SUCCESS','SUCCESS']);
+   assert.deepEqual(env.local.values.batchTasks.map(t=>t.content),['Alpha-specific comment','Beta-specific comment']);
+   assert.equal(requests.length,2);assert.equal(env.clicks.length,2);
+  } finally {global.fetch=oldFetch}
+ });
+ await test('a middle AI generation failure is captured without submit and later tasks continue',async()=>{
+  const oldFetch=global.fetch;
+  global.fetch=async(_url,init)=>{const message=JSON.parse(init.body).messages[1].content;if(message.includes('/b'))return {ok:false,status:503,text:async()=> 'temporarily unavailable'};return {ok:true,json:async()=>({choices:[{message:{content:message.includes('/a')?'Comment A':'Comment C'},finish_reason:'stop'}]})}};
+  try {
+   const aiConfig={provider:'custom',model:'test-model',baseUrl:'https://ai.example/v1',apiKey:'test-key'};
+   const env=await environment({aiConfig});
+   await env.send('import',{tasks:['a','b','c'].map(x=>({url:`https://example.com/${x}`,content:'',contentSource:'AI'}))});
+   await env.send('start',{identity:{},commentGenerationPrompt:'Write one comment.',windowId:1});await env.wait(()=>env.local.values.batchRun?.resultsFilename);
+   assert.deepEqual(env.local.values.batchTasks.map(t=>t.status),['SUCCESS','CONTENT_GENERATION_FAILED','SUCCESS']);
+   assert.deepEqual(env.local.values.batchTasks.map(t=>t.generationStatus),['SUCCESS','FAILED','SUCCESS']);
+   assert.equal(env.clicks.length,2);assert.equal(env.captures.length,3);assert.ok(env.local.values.batchTasks[1].screenshotFilename);
+  } finally {global.fetch=oldFetch}
+ });
+ await test('resume reuses persisted generated content without another AI request',async()=>{
+  const oldFetch=global.fetch;let requests=0;global.fetch=async()=>{requests++;throw new Error('unexpected AI request')};
+  try {
+   const savedTask={...task('https://example.com/resume'),content:'Saved generated comment',contentSource:'AI',generationStatus:'SUCCESS',generatedContent:'Saved generated comment'};
+   const run={id:'resume-ai',folder:'tests/resume-ai',windowId:1,commentGenerationPrompt:'Saved prompt'};
+   const env=await environment({aiConfig:{provider:'custom',model:'test-model',baseUrl:'https://ai.example/v1',apiKey:'test-key'},batchTasks:[savedTask],batchState:'PAUSED',currentTaskIndex:0,batchRun:run},{batchRunSession:'resume-ai'});
+   await env.send('start',{identity:{},commentGenerationPrompt:'Changed prompt is ignored for this run.',windowId:1});await env.wait(()=>env.local.values.batchRun?.resultsFilename);
+   assert.equal(env.local.values.batchTasks[0].status,'SUCCESS');assert.equal(env.local.values.batchTasks[0].content,'Saved generated comment');assert.equal(requests,0);assert.equal(env.clicks.length,1);
+  } finally {global.fetch=oldFetch}
  });
  await test('reopening a client reads persisted results without restarting any tasks',async()=>{
   const saved={batchState:'COMPLETED',currentTaskIndex:1,batchTasks:[{...task(),status:'SUCCESS',phase:'done',screenshotFilename:'/Users/test/backlink-results/proof.png'}],batchRun:{id:'saved',folder:'saved',resultsFilename:'/Users/test/backlink-results/results.csv'},identity:{name:'Remembered',email:'a@example.com',website:''}};

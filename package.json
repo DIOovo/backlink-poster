@@ -11,15 +11,19 @@
     "gen:injected": "node scripts/gen-injected.mjs",
     "test": "tsc src/utils/pwcode.ts --outDir .tmp-test --rootDir src --module commonjs --target es2020 --skipLibCheck --moduleResolution node && node -e \"require('fs').writeFileSync('.tmp-test/package.json','{\\\"type\\\":\\\"commonjs\\\"}')\" && node test/pwcode.test.cjs && npm run test:batch && npm run test:native",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.content.json --noEmit",
-    "test:batch": "tsc src/batch/model.ts src/batch/reply.ts src/batch/runner.ts --outDir .tmp-test --rootDir src --module commonjs --target es2020 --lib es2020,dom,dom.iterable --skipLibCheck --moduleResolution node && node test/batch.test.cjs && node test/reply.test.cjs && node test/batch-runner.test.cjs && node test/batch-ai.test.cjs",
+    "test:batch": "tsc src/batch/model.ts src/batch/reply.ts src/batch/article-context.ts src/batch/excel.ts src/batch/comment-generator.ts src/batch/runner.ts --outDir .tmp-test --rootDir src --module commonjs --target es2020 --lib es2020,dom,dom.iterable --skipLibCheck --moduleResolution node && node test/batch.test.cjs && node test/excel.test.cjs && node test/article-context.test.cjs && node test/comment-generator.test.cjs && node test/reply.test.cjs && node test/batch-runner.test.cjs && node test/batch-ai.test.cjs",
     "test:native": "bash test/native-host-install.test.sh"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.281",
     "@types/node": "^18.19.68",
+    "linkedom": "^0.18.13",
     "playwright-core": "1.53.0",
     "rollup-plugin-sourcemaps": "^0.6.3",
     "typescript": "^5.7.3",
     "vite": "^6.1.0"
+  },
+  "dependencies": {
+    "read-excel-file": "^9.3.10"
   }
 }

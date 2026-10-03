@@ -14,10 +14,10 @@ test('Bad rows, protocols and quotes fail visibly', () => {
  assert.throws(() => m.parseTasks('https://example.com no-tab', 'tsv'));
  assert.throws(() => m.validateUrl('https://user:pass@example.com'));
 });
-test('Result export round-trips exact multiline Content', () => {
- const task = {id:'1', url:'https://example.com',content:'Hi, "there"\nnext',status:'SUBMIT_FAILED',error:'One, "two"\nthree'};
+test('Result export round-trips exact multiline Content and generated Unicode', () => {
+ const task = {id:'1', url:'https://example.com',content:'Hi, "there"\nnext',contentSource:'AI',generationStatus:'SUCCESS',generatedContent:'实用, "分析"\n次の行 🚀',status:'SUBMIT_FAILED',error:'One, "two"\nthree'};
  task.entryStrategy = 'REPLY_TRIGGER_LOCAL';
- const csv = m.parseCSV(m.resultsCSV([task])); assert.equal(csv[1][2], task.content); assert.equal(csv[1][5], task.entryStrategy); assert.equal(csv[1][11], task.error); assert.equal(csv[0].length, 12);
+ const csv = m.parseCSV(m.resultsCSV([task])); assert.equal(csv[1][2], task.content); assert.equal(csv[1][3], 'AI'); assert.equal(csv[1][4], 'SUCCESS'); assert.equal(csv[1][5], task.generatedContent); assert.equal(csv[1][8], task.entryStrategy); assert.equal(csv[1][14], task.error); assert.equal(csv[0].length, 15);
 });
 test('Downloads folder rejects absolute/traversal and invalid paths', () => {
  for (const path of ['/Users/name', '../out', 'a/../b', 'C:\\a', 'a//b', './folder', 'a/.. ']) {

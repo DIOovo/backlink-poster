@@ -54,6 +54,12 @@ const server = http.createServer(async (req, res) => {
    },{once:true});
    </script>`)); return;
  }
+ if (url.pathname === '/article-a') {
+   res.end(shell('Creator Analytics That Improve Engagement', `<meta name="description" content="A practical guide to engagement rate, follower growth, and content performance analytics."><article><p>Creators can improve engagement rate by comparing saves, thoughtful replies, and returning viewers instead of chasing raw impressions.</p><p>Weekly follower growth and content performance trends reveal which formats earn sustained attention. A useful analytics review connects those signals to a small publishing experiment for the next week.</p></article><form id="commentform" method="post" action="/post">${fields}</form>`)); return;
+ }
+ if (url.pathname === '/article-b') {
+   res.end(shell('Building a Focused Social Media Strategy', `<meta name="description" content="How audience research and campaign measurement shape a durable content strategy."><article><p>A strong social media marketing plan starts with audience questions, channel purpose, and a clear content strategy rather than a crowded publishing calendar.</p><p>Teams should compare campaign performance against a defined goal, then reuse the stories and formats that help the intended audience take the next step.</p></article><form id="commentform" method="post" action="/post">${fields}</form>`)); return;
+ }
  res.end(shell('WordPress comment fixture', `<form id="commentform" method="post" action="/post?mode=${url.pathname === '/pending' ? 'pending' : ''}">${fields}</form>`));
 });
 server.listen(8765, '127.0.0.1', () => console.log('Local fixtures ready at http://127.0.0.1:8765'));

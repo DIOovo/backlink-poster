@@ -1,5 +1,7 @@
-export type TaskStatus = 'READY' | 'RUNNING' | 'SUCCESS' | 'PENDING_MODERATION' | 'FORM_NOT_FOUND' | 'SUBMIT_FAILED' | 'LOAD_FAILED' | 'AI_FAILED';
+export type TaskStatus = 'READY' | 'RUNNING' | 'SUCCESS' | 'PENDING_MODERATION' | 'FORM_NOT_FOUND' | 'SUBMIT_FAILED' | 'LOAD_FAILED' | 'AI_FAILED' | 'CONTENT_GENERATION_FAILED';
 export type BatchState = 'IDLE' | 'RUNNING' | 'PAUSING' | 'PAUSED' | 'STOPPING' | 'STOPPED' | 'COMPLETED';
+export type ContentSource = 'CSV' | 'AI';
+export type GenerationStatus = 'SUCCESS' | 'FAILED';
 export type Identity = { name: string; email: string; website: string };
 export type FieldKey = 'content' | keyof Identity;
 export type FieldLocator = { locator: string; required: boolean };
@@ -20,16 +22,20 @@ export interface Evidence {
 }
 export interface BatchTask {
   id: string; url: string; content: string; status: TaskStatus;
+  contentSource?: ContentSource;
+  generationStatus?: GenerationStatus;
+  generatedContent?: string;
   startedAt?: number; completedAt?: number;
   screenshotFilename?: string;
   detectedFormType?: string; detectionMethod?: 'local' | 'ai';
   entryStrategy?: EntryStrategy;
   finalUrl?: string; error?: string;
-  phase?: 'loading' | 'detecting' | 'filling' | 'submitting' | 'observing' | 'screenshot' | 'done';
+  phase?: 'loading' | 'extracting' | 'generating' | 'detecting' | 'filling' | 'submitting' | 'observing' | 'screenshot' | 'done';
   baseline?: Evidence;
 }
 export interface BatchRun {
   id: string; folder: string; workerTabId?: number; windowId?: number;
+  commentGenerationPrompt?: string;
   resultsFilename?: string; exportPending?: boolean; error?: string;
 }
 export interface BatchData {
@@ -106,8 +112,8 @@ export function resultsCSV(tasks: BatchTask[]): string {
   const escape = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const date = (v?: number) => v ? new Date(v).toISOString() : '';
   return '\uFEFF' + [
-    ['index', 'url', 'content', 'status', 'detection_method', 'entry_strategy', 'form_type', 'started_at', 'completed_at', 'final_url', 'screenshot_filename', 'error'],
-    ...tasks.map((t, i) => [i + 1, t.url, t.content, t.status, t.detectionMethod, t.entryStrategy, t.detectedFormType, date(t.startedAt), date(t.completedAt), t.finalUrl, t.screenshotFilename, t.error]),
+    ['index', 'url', 'content', 'content_source', 'generation_status', 'generated_content', 'status', 'detection_method', 'entry_strategy', 'form_type', 'started_at', 'completed_at', 'final_url', 'screenshot_filename', 'error'],
+    ...tasks.map((t, i) => [i + 1, t.url, t.content, t.contentSource || 'CSV', t.generationStatus, t.generatedContent, t.status, t.detectionMethod, t.entryStrategy, t.detectedFormType, date(t.startedAt), date(t.completedAt), t.finalUrl, t.screenshotFilename, t.error]),
   ].map(row => row.map(escape).join(',')).join('\r\n') + '\r\n';
 }
 /** Treat AI output as untrusted data, never as executable code. */
