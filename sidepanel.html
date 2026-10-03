@@ -3,376 +3,82 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title data-i18n="sidepanel.title">AI Form Filler</title>
+  <title>Batch Backlink Poster</title>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --accent: #4f46e5; --accent-light: #eef2ff; --accent-dark: #3730a3;
-      --success: #16a34a; --error: #dc2626; --warning: #d97706;
-      --bg: #f9fafb; --surface: #ffffff; --border: #e5e7eb;
-      --text: #111827; --muted: #6b7280; --radius: 8px;
-    }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 13px; color: var(--text); background: var(--bg); min-width: 300px;
-    }
-    .header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 12px 14px 10px; background: var(--surface);
-      border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
-    }
-    .header h1 { font-size: 14px; font-weight: 600; color: var(--accent); display: flex; align-items: center; gap: 6px; }
-    .header-actions { display: flex; gap: 4px; }
-    .icon-btn {
-      background: none; border: none; cursor: pointer; color: var(--muted);
-      padding: 4px; border-radius: 4px; font-size: 16px; line-height: 1;
-    }
-    .icon-btn:hover { background: var(--border); color: var(--text); }
-    .url-bar {
-      padding: 7px 14px; background: var(--accent-light); font-size: 11px;
-      color: var(--accent-dark); font-family: monospace; white-space: nowrap;
-      overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid var(--border);
-    }
-    .section {
-      background: var(--surface); margin: 10px 10px 0; border-radius: var(--radius);
-      border: 1px solid var(--border); overflow: hidden;
-    }
-    .section-header {
-      font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase;
-      letter-spacing: 0.05em; padding: 9px 12px 6px; border-bottom: 1px solid var(--border);
-    }
-    .section-body { padding: 10px 12px; }
-    .collapsible-header { cursor: pointer; user-select: none; }
-    .collapsible-header:hover { color: var(--accent); }
-    .caret { display: inline-block; transition: transform 0.12s; }
-    .collapsible-header.open .caret { transform: rotate(90deg); }
-    .collapsible-body.collapsed { display: none; }
-    .sub-toggle { margin-top: 10px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-    .btn {
-      width: 100%; padding: 10px; border: none; border-radius: 6px;
-      font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.15s, opacity 0.15s;
-    }
-    .btn-primary { background: var(--accent); color: white; }
-    .btn-primary:hover:not(:disabled) { background: var(--accent-dark); }
-    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-    .btn.running { background: var(--warning); animation: pulse 1.2s infinite; cursor: wait; }
-    .btn-ghost {
-      background: var(--surface); color: var(--accent); border: 1px dashed var(--border); padding: 7px;
-      font-size: 12px;
-    }
-    .btn-ghost:hover { border-color: var(--accent); background: var(--accent-light); }
-    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.75; } }
-
-    .btn-select { background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; gap: 6px; }
-    .btn-select:hover { background: var(--accent-dark); }
-    .btn-select.selecting { background: var(--warning); animation: pulse 1.5s infinite; }
-
-    /* capture mode segmented toggle */
-    .mode-toggle { display: flex; gap: 0; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
-    .mode-toggle button {
-      flex: 1; border: none; background: var(--surface); color: var(--muted); cursor: pointer;
-      padding: 6px 8px; font-size: 11px; font-weight: 500; line-height: 1.3;
-    }
-    .mode-toggle button + button { border-left: 1px solid var(--border); }
-    .mode-toggle button.active { background: var(--accent); color: #fff; }
-    .mode-toggle button:not(.active):hover { background: var(--accent-light); color: var(--accent-dark); }
-    .mode-hint { font-size: 10px; color: var(--muted); margin: -4px 0 8px; }
-
-    .selected-info {
-      margin-top: 8px; background: var(--accent-light); border: 1px solid #c7d2fe;
-      border-radius: 6px; padding: 6px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    }
-    .selected-info.hidden { display: none !important; }
-    .selected-selector { font-family: monospace; font-size: 11px; color: var(--accent-dark); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .btn-clear { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 16px; line-height: 1; padding: 0 2px; flex-shrink: 0; }
-    .btn-clear:hover { color: var(--error); }
-
-    .field { margin-bottom: 10px; }
-    .field:last-child { margin-bottom: 0; }
-    .field label { display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin-bottom: 4px; }
-    .field select, .field textarea, .field input {
-      width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px;
-      font-size: 12px; color: var(--text); background: var(--surface); outline: none; font-family: inherit;
-    }
-    .field select:focus, .field textarea:focus, .field input:focus { border-color: var(--accent); }
-    .field textarea { resize: vertical; min-height: 56px; }
-
-    /* fields editor */
-    .fields-hint { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
-    .field-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
-    .field-row .field-label { flex: 1.6; min-width: 0; border: 1px solid var(--border); border-radius: 5px; padding: 6px 8px; font-size: 12px; outline: none; }
-    .field-row .field-type { flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: 5px; padding: 6px 8px; font-size: 12px; color: var(--muted); outline: none; }
-    .field-row .field-label:focus, .field-row .field-type:focus { border-color: var(--accent); }
-    .field-row .field-del { flex-shrink: 0; width: 26px; height: 28px; background: none; border: 1px solid var(--border); border-radius: 5px; color: var(--muted); cursor: pointer; line-height: 1; }
-    .field-row .field-del:hover { border-color: var(--error); color: var(--error); }
-
-    .meta-grid { display: grid; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); }
-    .meta-field label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
-    .meta-field input { width: 100%; border: 1px solid var(--border); border-radius: 5px; padding: 6px 8px; font-size: 12px; outline: none; font-family: monospace; }
-    .meta-field input:focus { border-color: var(--accent); }
-    .meta-field .readonly { background: var(--bg); color: var(--muted); }
-    .cache-hit { display: none; margin-bottom: 8px; padding: 6px 10px; background: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; border-radius: 6px; font-size: 12px; }
-    .cache-hit.show { display: block; }
-
-    .json-area {
-      width: 100%; min-height: 520px; resize: vertical; font-family: 'Menlo','Monaco',monospace;
-      font-size: 11px; line-height: 1.5; border: 1px solid var(--border); border-radius: 6px;
-      padding: 8px 10px; outline: none; color: #1e293b; background: #f8fafc;
-    }
-    .json-area:focus { border-color: var(--accent); }
-    .json-area[readonly] { opacity: 0.7; cursor: not-allowed; }
-    .snapshot-view {
-      margin: 0; max-height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-word;
-      font-family: 'Menlo','Monaco',monospace; font-size: 11px; line-height: 1.5; color: #334155;
-      background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
-    }
-    .row-2 { display: flex; gap: 8px; }
-    .row-2 .btn { flex: 1; }
-
-    /* 录制把手：hover 代码区（非编辑态）时按鼠标位置显示插入虚线 + ⏺（参考 playwright-crx） */
-    .rec-hint { font-size: 10px; color: var(--muted); margin-bottom: 6px; }
-    .rec-hint b { color: var(--accent-dark); }
-    .rec-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 3; display: none; }
-    .rec-overlay.show { display: block; }
-    .rec-line { position: absolute; left: 28px; right: 4px; height: 0; border-top: 2px dashed var(--accent); opacity: 0.9; }
-    .rec-overlay.recording .rec-line { border-color: var(--error); }
-    .rec-fab {
-      position: absolute; left: 4px; transform: translateY(-50%);
-      min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
-      border: 1px solid var(--accent); background: var(--surface); color: var(--accent);
-      font-size: 11px; line-height: 1; cursor: pointer; pointer-events: auto;
-      display: flex; align-items: center; justify-content: center; white-space: nowrap;
-    }
-    .rec-fab:hover { background: var(--accent); color: #fff; }
-    .rec-fab.recording {
-      background: var(--error); border-color: var(--error); color: #fff;
-      font-weight: 600; font-size: 10px; animation: pulse 1.2s infinite;
-    }
-
-    /* ── 代码高亮编辑器（透明 textarea 叠加在高亮层之上）── */
-    .code-editor {
-      position: relative; min-height: 520px; resize: vertical; overflow: hidden;
-      border: 1px solid var(--border); border-radius: 6px; background: #0b1020;
-    }
-    .code-hl, .code-area {
-      margin: 0; padding: 8px 10px; border: 0;
-      font-family: 'Menlo','Monaco',monospace; font-size: 11px; line-height: 1.5;
-      white-space: pre; tab-size: 2; -moz-tab-size: 2;
-    }
-    .code-hl {
-      position: absolute; inset: 0; overflow: auto; pointer-events: none;
-      color: #cbd5e1; z-index: 1;
-    }
-    .code-area {
-      position: absolute; inset: 0; width: 100%; height: 100%; overflow: auto;
-      background: transparent; color: transparent; caret-color: #e5e7eb; outline: none;
-      resize: none; z-index: 2;
-    }
-    .code-area[readonly] { caret-color: transparent; }
-    /* token 颜色 */
-    .code-hl .c { color: #6b7280; font-style: italic; }
-    .code-hl .s { color: #9be7a0; }
-    .code-hl .k { color: #c792ea; }
-    .code-hl .m { color: #82aaff; }
-    .code-hl .n { color: #f78c6c; }
-
-    /* status */
-    .status-bar { display: none; margin: 8px 10px 0; padding: 8px 12px; border-radius: 6px; font-size: 12px; align-items: center; gap: 8px; }
-    .status-bar.show { display: flex; }
-    .status-bar.info { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
-    .status-bar.success { background: #f0fdf4; color: var(--success); border: 1px solid #bbf7d0; }
-    .status-bar.error { background: #fef2f2; color: var(--error); border: 1px solid #fecaca; }
-    .spinner { width: 14px; height: 14px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .steps-log { display: none; margin: 6px 10px 0; padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
-    .steps-log.show { display: block; }
-    .step-line { display: flex; align-items: flex-start; gap: 7px; font-size: 12px; line-height: 1.5; color: var(--muted); padding: 1px 0; }
-    .step-icon { flex-shrink: 0; width: 14px; text-align: center; }
-    .step-text { flex: 1; word-break: break-word; }
-    .step-line.active { color: var(--accent-dark); font-weight: 500; }
-    .step-line.active .step-icon { color: var(--accent); }
-    .step-line.done { color: var(--text); }
-    .step-line.done .step-icon { color: var(--success); }
-    .step-line.fail { color: var(--error); }
-    .step-line.fail .step-icon { color: var(--error); }
-
-    .stream-box {
-      display: none; margin: 6px 10px 0; padding: 8px 10px;
-      background: #0b1020; color: #9be7a0; border: 1px solid #1f2937; border-radius: 6px;
-      font-family: 'Menlo','Monaco',monospace; font-size: 11px; line-height: 1.5;
-      max-height: 140px; overflow: auto; white-space: pre-wrap; word-break: break-word;
-    }
-    .stream-box.show { display: block; }
-
-    /* ── 定位校验报告 ── */
-    .issues-list { display: none; margin-top: 8px; }
-    .issues-list.show { display: block; }
-    .issues-title { font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
-    .issue-row {
-      display: flex; gap: 8px; align-items: flex-start; font-size: 11px; line-height: 1.45;
-      padding: 6px 8px; border: 1px solid #fde68a; background: #fffbeb; color: #92400e;
-      border-radius: 6px; margin-bottom: 5px;
-    }
-    .issue-row.error { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
-    .issue-row.fixed { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
-    .issue-icon { flex-shrink: 0; width: 14px; text-align: center; }
-    .issue-text { flex: 1; min-width: 0; word-break: break-word; }
-    .issue-text code { font-family: 'Menlo','Monaco',monospace; font-size: 10px; opacity: 0.85; word-break: break-all; }
-    .issue-fix-btn {
-      flex-shrink: 0; font-size: 10px; padding: 3px 8px; border-radius: 10px; cursor: pointer;
-      border: 1px solid currentColor; background: transparent; color: inherit; line-height: 1.2;
-    }
-    .issue-fix-btn:hover { background: rgba(0,0,0,0.06); }
-    .issue-fix-btn.picking { background: var(--warning); border-color: var(--warning); color: #fff; animation: pulse 1.2s infinite; }
-
-    .bottom-pad { height: 16px; }
-    .no-config-banner { display: none; margin: 10px 10px 0; padding: 10px 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; font-size: 12px; color: #92400e; }
-    .no-config-banner.show { display: block; }
-    .no-config-banner a { color: var(--accent); cursor: pointer; text-decoration: underline; }
+    * { box-sizing: border-box; }
+    [hidden] { display:none !important; }
+    :root { color-scheme: light; --accent:#4f46e5; --ink:#111827; --muted:#525c6b; --line:#dfe3e9; --surface:#fff; --bg:#f9fafb; }
+    body { margin:0; font:13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; color:var(--ink); background:var(--bg); }
+    header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 16px; background:var(--surface); border-bottom:1px solid var(--line); }
+    h1 { margin:0; font-size:18px; line-height:1.3; font-weight:650; text-wrap:balance; }
+    h2 { margin:0 0 12px; font-size:15px; }
+    main { padding:0 16px 24px; }
+    section { padding:20px 0; border-bottom:1px solid var(--line); }
+    label { display:block; margin:10px 0 5px; font-weight:550; }
+    input:not([type=checkbox]), textarea { display:block; width:100%; font:inherit; padding:9px 10px; border:1px solid #bbc2cd; border-radius:6px; color:var(--ink); background:white; caret-color:var(--accent); }
+    textarea { min-height:120px; resize:vertical; }
+    .check { display:flex; align-items:center; gap:7px; font-weight:400; }
+    input[type=checkbox] { width:16px; height:16px; accent-color:var(--accent); margin:0; }
+    button { font:inherit; font-weight:550; cursor:pointer; border:1px solid #bbc2cd; background:white; color:var(--ink); border-radius:6px; padding:8px 12px; min-height:36px; }
+    button:hover:not(:disabled) { background:#eef2ff; border-color:var(--accent); }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    button.primary { color:white; background:var(--accent); border-color:var(--accent); }
+    button.primary:hover:not(:disabled) { background:#3730a3; }
+    button.danger { color:#b42318; }
+    :focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+    ::selection { background:#dce1ff; }
+    .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+    .actions > .primary { flex:1; }
+    .hint { color:var(--muted); font-size:12px; margin:6px 0; }
+    #notice { color:#b42318; white-space:pre-wrap; overflow-wrap:anywhere; margin:12px 0 0; }
+    #notice:empty { display:none; }
+    #summary { font-variant-numeric:tabular-nums; margin:12px 0 6px; }
+    progress { width:100%; height:7px; accent-color:var(--accent); }
+    .table-wrap { overflow:auto; margin-top:16px; scrollbar-color:#a5aabc #f9fafb; }
+    table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:12px; }
+    th { font-weight:550; color:var(--muted); text-align:left; }
+    th, td { padding:9px 4px; border-bottom:1px solid var(--line); vertical-align:top; overflow-wrap:anywhere; }
+    th:first-child { width:25px; } th:nth-child(2) { width:27%; } th:nth-child(3) { width:27%; }
+    td:first-child { font-variant-numeric:tabular-nums; color:var(--muted); }
+    td a { color:#3730a3; text-underline-offset:3px; }
+    .content-preview { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; white-space:pre-wrap; }
+    .status { font-size:10px; font-weight:650; letter-spacing:.01em; }
+    .SUCCESS { color:#15743b; } .PENDING_MODERATION { color:#855500; } .RUNNING { color:#4338ca; }
+    .SUBMIT_FAILED,.AI_FAILED,.LOAD_FAILED,.FORM_NOT_FOUND { color:#b42318; }
+    details { margin-top:5px; } summary { cursor:pointer; color:var(--muted); } details p { white-space:pre-wrap; }
+    .small { font-size:11px; padding:3px 6px; min-height:28px; margin-top:6px; }
+    #output { overflow-wrap:anywhere; white-space:pre-wrap; }
+    #empty { padding:24px 4px; color:var(--muted); }
+    @media (max-width:330px) { header, main { padding-left:12px; padding-right:12px; } header { gap:8px; } h1 { font-size:16px; } }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1><span>✦</span> <span data-i18n="sidepanel.title">AI Form Filler</span></h1>
-    <div class="header-actions">
-      <button class="icon-btn" id="btn-cache" data-i18n-title="sidepanel.cacheManager" title="Cache manager">📂</button>
-      <button class="icon-btn" id="btn-options" data-i18n-title="sidepanel.settings" title="Settings">⚙</button>
-    </div>
-  </div>
-
-  <div class="url-bar" id="current-url" data-i18n="sidepanel.loading">Loading...</div>
-
-  <div class="no-config-banner" id="no-config-banner">
-    <span data-i18n-html="sidepanel.noConfig" data-i18n-link-key="sidepanel.openSettings">AI not configured. Please <a id="link-options" data-i18n-link>open Settings</a> and enter your API Key.</span>
-  </div>
-
-  <!-- ① Select -->
-  <div class="section">
-    <div class="section-header" data-i18n="sidepanel.step1Title">① Select form container</div>
-    <div class="section-body">
-      <div class="mode-hint" id="mode-hint"></div>
-      <div class="row-2">
-        <button class="btn btn-select" id="btn-select"><span>🎯</span> <span data-i18n="sidepanel.btnPick">Click to pick a page element</span></button>
-        <button class="btn btn-primary" id="btn-oneclick-local" data-i18n-title="sidepanel.btnOneClickTitle" title="Pick an element, then auto run local analyze → local generate (or load cache)"><span data-i18n="sidepanel.btnOneClick">⚡ One-click local fill</span></button>
-      </div>
-      <div class="selected-info hidden" id="selected-info">
-        <code class="selected-selector" id="selected-selector"></code>
-        <button class="btn-clear" id="btn-clear" data-i18n-title="sidepanel.reselect" title="Re-select">✕</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ①.5 AI 快照预览 -->
-  <div class="section" id="snapshot-section" style="display:none;">
-    <div class="section-header collapsible-header open" id="snapshot-header">
-      <span class="caret">▸</span> <span id="snapshot-header-label" data-i18n="sidepanel.snapshotTitle">Captured page snapshot (aria snapshot)</span>
-    </div>
-    <div class="section-body collapsible-body" id="snapshot-body">
-      <div class="fields-hint" data-i18n="sidepanel.snapshotHint">This is the page structure sent to the AI — confirm it includes the target form:</div>
-      <pre class="snapshot-view" id="snapshot-view"></pre>
-    </div>
-  </div>
-
-  <!-- ② Analyze -->
-  <div class="section" id="config-section">
-    <div class="section-header" data-i18n="sidepanel.step2Title">② Analyze form</div>
-    <div class="section-body">
-      <div class="row-2">
-        <button class="btn btn-ghost" id="btn-fill-local" disabled><span data-i18n="sidepanel.btnLocalAnalyze">🧩 Local analyze</span></button>
-        <button class="btn btn-primary" id="btn-fill" disabled><span data-i18n="sidepanel.btnAiAnalyze">🤖 AI analyze</span></button>
-      </div>
-      <div class="mode-hint" data-i18n="sidepanel.analyzeHint">Local = parse the DOM in your browser (no API key, no tokens; best for standard HTML controls). AI = let the model read the snapshot (may detect more on custom/JS widgets).</div>
-    </div>
-  </div>
-
-  <!-- ③ Confirm fields + meta -->
-  <div class="section" id="fields-section" style="display:none;">
-    <div class="section-header collapsible-header open" id="fields-header">
-      <span class="caret">▸</span> <span data-i18n="sidepanel.step3Title">③ Confirm form fields</span>
-    </div>
-    <div class="section-body collapsible-body" id="fields-body">
-      <div class="cache-hit" id="cache-hit" data-i18n="sidepanel.cacheHit">⚡ Cache hit: this form's fields are loaded — confirm or edit directly</div>
-      <div class="fields-hint" data-i18n="sidepanel.fieldsHint">Review the AI-detected fields; you can edit, delete or add:</div>
-      <div id="fields-list"></div>
-      <button class="btn btn-ghost" id="btn-add-field" data-i18n="sidepanel.addField">+ Add field</button>
-
-      <div class="meta-grid">
-        <div class="meta-field">
-          <label data-i18n="sidepanel.formName">Form name (required &amp; must be unique)</label>
-          <input type="text" id="form-name-input" data-i18n-placeholder="sidepanel.formNamePlaceholder" placeholder="e.g. Signup form" style="font-family:inherit;" />
-        </div>
-        <div class="meta-field">
-          <label data-i18n="sidepanel.matchUrl">Match URL (regex allowed)</label>
-          <input type="text" id="url-pattern-input" data-i18n-placeholder="sidepanel.matchUrlPlaceholder" placeholder="e.g. ^https://example\.com/signup" />
-        </div>
-        <div class="meta-field">
-          <label data-i18n="sidepanel.domHash">DOM hash (auto)</label>
-          <input type="text" id="dom-hash-view" class="readonly" readonly />
-        </div>
-      </div>
-
-      <button class="btn btn-primary" id="btn-confirm-fields" style="margin-top:10px;" data-i18n="sidepanel.confirmFields">✓ Confirm & save fields</button>
-    </div>
-  </div>
-
-  <!-- ④ 填充代码 / 动作 JSON（按钮常驻，JSON 默认折叠） -->
-  <div class="section" id="actions-section" style="display:none;">
-    <div class="section-header" data-i18n="sidepanel.step4Title">④ Fill code</div>
-    <div class="section-body">
-      <div class="field">
-        <label data-i18n="sidepanel.profile">Profile (optional — preset values the AI uses to fill)</label>
-        <select id="profile-select"><option value="" data-i18n="sidepanel.noProfile">No profile</option></select>
-      </div>
-      <div class="row-2">
-        <button class="btn btn-ghost" id="btn-regen-local" data-i18n="sidepanel.btnLocalGenerate">🧩 Local generate</button>
-        <button class="btn btn-primary" id="btn-regen" data-i18n="sidepanel.btnAiGenerate">🤖 AI generate fill code</button>
-      </div>
-      <div class="mode-hint" data-i18n="sidepanel.generateHint">Local = build locators &amp; values from the DOM in your browser (no AI; values are sensible defaults that respect length rules). AI = generate via the model.</div>
-      <div class="collapsible-header sub-toggle" id="actions-toggle">
-        <span class="caret" id="actions-caret">▸</span> <span data-i18n="sidepanel.actionJson">Action JSON (read-only)</span>
-      </div>
-      <div class="collapsible-body collapsed" id="actions-body">
-        <textarea class="json-area" id="actions-json" spellcheck="false"></textarea>
-      </div>
-    </div>
-  </div>
-
-  <!-- ⑤ Playwright code -->
-  <div class="section" id="code-section" style="display:none;">
-    <div class="section-header" data-i18n="sidepanel.step5Title">⑤ Playwright code (editable / debuggable)</div>
-    <div class="section-body">
-      <div class="rec-hint" id="rec-hint"></div>
-      <div class="code-editor" id="code-editor">
-        <pre class="code-hl" id="code-hl" aria-hidden="true"></pre>
-        <textarea class="code-area" id="code-text" spellcheck="false" wrap="off" autocomplete="off" autocapitalize="off"></textarea>
-        <div class="rec-overlay" id="rec-overlay">
-          <div class="rec-line" id="rec-line"></div>
-          <button class="rec-fab" id="rec-fab" data-i18n-title="sidepanel.recFabTitle" title="Record page actions and insert here">⏺</button>
-        </div>
-      </div>
-      <div class="fields-hint" style="margin-top:6px;" data-i18n="sidepanel.codeSyncHint">The Action JSON above is a read-only view derived from this code; execution always uses this code.</div>
-      <div class="issues-list" id="issues-list">
-        <div class="issues-title" data-i18n="sidepanel.issuesTitle">Locator check report</div>
-        <div id="issues-rows"></div>
-      </div>
-      <div class="row-2" style="margin-top:8px;">
-        <button class="btn btn-ghost" id="btn-validate" data-i18n="sidepanel.btnValidate">🔎 Validate locators</button>
-        <button class="btn btn-primary" id="btn-execute" data-i18n="sidepanel.btnExecute">⚡ Confirm & fill the page</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Status -->
-  <div class="status-bar" id="status-bar">
-    <div class="spinner" id="status-spinner"></div>
-    <span id="status-text"></span>
-  </div>
-  <div class="steps-log" id="steps-log"></div>
-  <pre class="stream-box" id="stream-box"></pre>
-
-  <div class="bottom-pad"></div>
-
+  <header><h1>Batch Backlink Poster</h1><button id="settings" type="button">Settings</button></header>
+  <main>
+    <section aria-labelledby="identity-heading">
+      <h2 id="identity-heading">Identity</h2>
+      <label for="name">Name</label><input id="name" autocomplete="name" />
+      <label for="email">Email</label><input id="email" type="email" autocomplete="email" />
+      <label for="website">Website</label><input id="website" type="url" autocomplete="url" placeholder="https://your-site.com" />
+      <label class="check"><input id="remember" type="checkbox" checked />Remember identity</label>
+    </section>
+    <section aria-labelledby="tasks-heading">
+      <h2 id="tasks-heading">Tasks</h2>
+      <label for="tasks">Paste URL + Content</label>
+      <p class="hint" id="format-hint">每行一条：URL、Tab 分隔符、Content。多行正文请用 CSV 导入，表头为 url,content。</p>
+      <textarea id="tasks" aria-describedby="format-hint" placeholder="https://example.com/post&#9;Your comment" spellcheck="false"></textarea>
+      <div class="actions"><button id="preview" type="button">Preview tasks</button><button id="import" type="button">Import CSV</button><input id="csv-file" type="file" accept=".csv,text/csv" hidden /></div>
+      <p class="hint">Concurrency: 1 · 自动填写并提交，每条完成后保存截图。</p>
+      <div class="actions"><button class="primary" id="start" type="button" disabled>Start Batch</button><button id="pause" type="button" disabled>Pause</button><button id="stop" class="danger" type="button" disabled>Stop</button></div>
+      <p id="summary" role="status" aria-live="polite">Progress: 0 / 0 · IDLE</p>
+      <progress id="progress" value="0" max="1" aria-label="Batch progress"></progress>
+      <p id="control-hint" class="hint">Pause / Stop 会等待当前任务完成。</p>
+      <p id="notice" role="alert"></p>
+      <div class="table-wrap"><table aria-label="Batch tasks"><thead><tr><th>#</th><th>URL</th><th>Content</th><th>Status</th></tr></thead><tbody id="task-list"></tbody></table></div>
+      <p id="empty">导入任务后，这里会显示逐条状态和截图。</p>
+    </section>
+    <section aria-labelledby="results-heading"><h2 id="results-heading">Results</h2><p class="hint" id="output">截图和 results.csv 通过 Local File Writer（Native Messaging）直接写入本地输出目录，不经过浏览器下载。</p><button id="export" type="button" disabled>Export results.csv</button></section>
+  </main>
   <script type="module" src="/src/sidepanel.ts"></script>
 </body>
 </html>

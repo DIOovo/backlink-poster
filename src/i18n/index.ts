@@ -41,7 +41,7 @@ export function t(key: MessageKey | string, params?: MessageParams): string {
 export async function initI18n(): Promise<Locale> {
   const stored = await getUiLocale();
   currentLocale = stored ?? detectBrowserLocale();
-  document.documentElement?.setAttribute('lang', currentLocale === 'zh-CN' ? 'zh-CN' : 'en');
+  if (typeof document !== 'undefined') document.documentElement?.setAttribute('lang', currentLocale === 'zh-CN' ? 'zh-CN' : 'en');
   return currentLocale;
 }
 

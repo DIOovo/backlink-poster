@@ -9,7 +9,10 @@
     "build": "vite build && vite build --config vite.content.config.ts",
     "dev": "vite build --watch",
     "gen:injected": "node scripts/gen-injected.mjs",
-    "test": "tsc src/utils/pwcode.ts --outDir .tmp-test --rootDir src --module commonjs --target es2020 --skipLibCheck --moduleResolution node && node -e \"require('fs').writeFileSync('.tmp-test/package.json','{\\\"type\\\":\\\"commonjs\\\"}')\" && node test/pwcode.test.cjs"
+    "test": "tsc src/utils/pwcode.ts --outDir .tmp-test --rootDir src --module commonjs --target es2020 --skipLibCheck --moduleResolution node && node -e \"require('fs').writeFileSync('.tmp-test/package.json','{\\\"type\\\":\\\"commonjs\\\"}')\" && node test/pwcode.test.cjs && npm run test:batch && npm run test:native",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.content.json --noEmit",
+    "test:batch": "tsc src/batch/model.ts src/batch/reply.ts src/batch/runner.ts --outDir .tmp-test --rootDir src --module commonjs --target es2020 --lib es2020,dom,dom.iterable --skipLibCheck --moduleResolution node && node test/batch.test.cjs && node test/reply.test.cjs && node test/batch-runner.test.cjs && node test/batch-ai.test.cjs",
+    "test:native": "bash test/native-host-install.test.sh"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.281",

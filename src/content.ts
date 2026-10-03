@@ -5,6 +5,8 @@
 
 import { initI18n, t, onLocaleChange } from './i18n';
 import { CONFIG } from './utils/config';
+import { setupBatchContent } from './batch/content';
+declare const __aifillInjected: any;
 
 (function () {
   'use strict';
@@ -345,17 +347,17 @@ import { CONFIG } from './utils/config';
   const STRIP_ATTRS = new Set(['style', 'class']);
 
   /** 深度清洗克隆出来的 DOM 子树：删脚本/样式/注释、剥离噪音属性 */
-  function cleanNode(node) {
+  function cleanNode(node: Node) {
     // 元素节点
     if (node.nodeType === 1) {
       // 删除事件处理器与噪音属性
-      for (const attr of Array.from(node.attributes)) {
+      for (const attr of Array.from((node as Element).attributes)) {
         const name = attr.name.toLowerCase();
-        if (name.startsWith('on') || STRIP_ATTRS.has(name)) node.removeAttribute(attr.name);
+        if (name.startsWith('on') || STRIP_ATTRS.has(name)) (node as Element).removeAttribute(attr.name);
       }
       // 递归处理子节点（先收集，避免边遍历边删）
       for (const child of Array.from(node.childNodes)) {
-        if (child.nodeType === 1 && STRIP_TAGS.has(child.tagName)) {
+        if (child.nodeType === 1 && STRIP_TAGS.has((child as Element).tagName)) {
           child.remove();
         } else if (child.nodeType === 8) {
           child.remove(); // 注释
@@ -1204,7 +1206,7 @@ import { CONFIG } from './utils/config';
     return el === combo;
   }
 
-  function dispatchClickSeq(el, detail, opts) {
+  function dispatchClickSeq(el, detail, opts: { focus?: boolean } = {}) {
     opts = opts || {};
     const doFocus = opts.focus === true || (opts.focus !== false && shouldFocusOnClick(el));
     try { el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' }); } catch (_) {}
@@ -1331,7 +1333,7 @@ import { CONFIG } from './utils/config';
   }
 
   function fireInputChange(el, data) {
-    resetValueTracker(el);
+    // Leave React's tracker at its old value so the native setter + input event is observed.
     el.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, inputType: 'insertText', data: data == null ? null : String(data) }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
@@ -1784,6 +1786,20 @@ import { CONFIG } from './utils/config';
     document.documentElement.appendChild(el);
     fillGateEl = el;
   }
+
+  setupBatchContent({
+    selector: buildUniqueSelector,
+    label: localFieldLabel,
+    query: selector => {
+      const injected = pwInjected();
+      if (!injected) throw new Error('InjectedScript unavailable.');
+      return injected.querySelectorAll(injected.parseSelector(selector), document);
+    },
+    fill: (el, value) => doFill(pwInjected(), el, value),
+    click: selector => pwExecStep({ selector, action: 'click', args: [], timeout: 5000 }),
+    snapshot: el => pwInjected().ariaSnapshot(el, { forAI: true }),
+    html: el => captureCleanHtml(el).html || '',
+  });
 
   // ── Message listener ─────────────────────────────────────────────────────
 

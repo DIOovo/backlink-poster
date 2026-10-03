@@ -122,6 +122,11 @@
     .save-msg.success { color: var(--success); display: block; }
     .save-msg.error { color: var(--error); display: block; }
 
+    /* ── Local File Writer status ── */
+    .writer-status { font-size: 13px; font-weight: 600; }
+    .writer-status.ok { color: var(--success); }
+    .writer-status.err { color: var(--error); }
+
     /* ── Profile list ── */
     .profile-list { list-style: none; margin-bottom: 12px; }
     .profile-item {
@@ -203,6 +208,34 @@
       </div>
     </div>
 
+    <div class="card">
+      <div class="card-header">Batch screenshots</div>
+      <div class="card-body">
+        <div class="field"><label for="screenshot-folder">Screenshot Folder</label>
+          <input id="screenshot-folder" placeholder="backlink-results/2026-10-02" />
+          <p class="hint">Legacy label. Actual files are now written by the Local File Writer below, outside the browser Downloads folder.</p>
+        </div>
+        <button class="btn btn-primary" id="save-screenshot-folder" type="button">Save folder</button>
+        <div id="screenshot-folder-message" role="status" class="save-msg"></div>
+      </div>
+    </div>
+
+    <!-- Local File Writer (Native Messaging) -->
+    <div class="card">
+      <div class="card-header">Local File Writer</div>
+      <div class="card-body">
+        <div class="field">
+          <label>Status</label>
+          <div id="writer-status" class="writer-status">Checking…</div>
+        </div>
+        <div class="field">
+          <label>Output Root</label>
+          <div id="writer-root" class="hint" style="word-break:break-all;">–</div>
+        </div>
+        <button class="btn btn-secondary" id="btn-test-writer" type="button">Test Connection</button>
+        <div id="writer-message" role="status" class="save-msg"></div>
+      </div>
+    </div>
     <!-- AI Config -->
     <div class="card">
       <div class="card-header" data-i18n="options.aiConfig">AI Configuration</div>

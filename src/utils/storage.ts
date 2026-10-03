@@ -39,7 +39,7 @@ export async function getScriptsForUrl(url: string): Promise<Array<{ key: string
   try {
     const { hostname, pathname } = new URL(url);
     const prefix = `script:${hostname}${pathname}:`;
-    const all = await chrome.storage.local.get(null);
+    const all = await new Promise<Record<string, any>>(resolve => chrome.storage.local.get(null, resolve));
     return Object.entries(all)
       .filter(([k]) => k.startsWith(prefix))
       .map(([key, script]) => ({ key, script: script as SavedScript }))

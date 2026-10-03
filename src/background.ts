@@ -1,3 +1,5 @@
+import { registerBatchRunner } from './batch/runner';
+registerBatchRunner();
 /**
  * AI Form Filler — Background Service Worker
  *
@@ -38,6 +40,7 @@ chrome.action.onClicked.addListener(async (tab) => {
 // ── Message router ────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (String(message?.type).startsWith('batch:')) return;
   (async () => {
     try {
       // 按 tabId 加锁（无 tab 的纯 AI 操作用 'ai' 键），避免不同标签互相阻塞

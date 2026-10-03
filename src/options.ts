@@ -1,9 +1,11 @@
+import { defaultFolder, validateFolder, errorText } from './batch/model';
 /**
  * AI Form Filler — Options Page
  */
 
 import type { AIConfig, Profile } from './utils/types';
 import { getAIConfig, saveAIConfig, getProfiles, saveProfiles } from './utils/storage';
+import { pingNative } from './utils/native';
 import { initI18n, applyI18n, t, setLocale, onLocaleChange, getLocale, type Locale } from './i18n';
 
 type Provider = 'anthropic' | 'openai' | 'deepseek' | 'custom' | 'custom-anthropic';
@@ -286,3 +288,42 @@ async function init() {
 }
 
 init();
+
+const screenshotFolder = document.getElementById('screenshot-folder') as HTMLInputElement;
+chrome.storage.local.get('screenshotFolder').then(s => { screenshotFolder.value = s.screenshotFolder || defaultFolder(); });
+document.getElementById('save-screenshot-folder')!.addEventListener('click', async () => {
+  const msg = document.getElementById('screenshot-folder-message')!;
+  try {
+    const folder = validateFolder(screenshotFolder.value);
+    await chrome.storage.local.set({ screenshotFolder: folder });
+    showMsg(msg, 'success', 'Saved. Applies to the next new batch.');
+  } catch (e) { showMsg(msg, 'error', errorText(e)); }
+});
+
+// ── Local File Writer (Native Messaging) ────────────────────────────────────
+
+const writerStatus = document.getElementById('writer-status')!;
+const writerRoot = document.getElementById('writer-root')!;
+const writerMsg = document.getElementById('writer-message')!;
+
+async function refreshWriterStatus() {
+  writerStatus.textContent = 'Checking…';
+  writerStatus.className = 'writer-status';
+  writerRoot.textContent = '–';
+  try {
+    const res = await pingNative();
+    writerStatus.textContent = 'Connected';
+    writerStatus.className = 'writer-status ok';
+    writerRoot.textContent = res.outputRoot;
+    showMsg(writerMsg as HTMLElement, 'success', `Host v${res.version}`);
+  } catch (e) {
+    writerStatus.textContent = 'Not Installed / Error';
+    writerStatus.className = 'writer-status err';
+    writerRoot.textContent = '–';
+    writerMsg.className = 'save-msg error';
+    writerMsg.textContent = errorText(e);
+  }
+}
+
+document.getElementById('btn-test-writer')!.addEventListener('click', () => { void refreshWriterStatus(); });
+void refreshWriterStatus();

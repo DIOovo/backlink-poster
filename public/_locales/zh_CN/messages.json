@@ -1,6 +1,14 @@
 {
-  "name": { "message": "AI Form Filler" },
-  "description": { "message": "使用 AI 自动填充网页表单" },
-  "actionTitle": { "message": "AI Form Filler" },
-  "commandQuickFill": { "message": "当前页面匹配缓存表单时弹出快捷菜单" }
+  "name": {
+    "message": "Batch Backlink Poster"
+  },
+  "description": {
+    "message": "Batch comment posting with local detection, AI fallback and screenshot results"
+  },
+  "actionTitle": {
+    "message": "Batch Backlink Poster"
+  },
+  "commandQuickFill": {
+    "message": "当前页面匹配缓存表单时弹出快捷菜单"
+  }
 }

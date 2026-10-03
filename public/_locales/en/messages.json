@@ -1,6 +1,14 @@
 {
-  "name": { "message": "AI Form Filler" },
-  "description": { "message": "Auto-fill web forms using AI" },
-  "actionTitle": { "message": "AI Form Filler" },
-  "commandQuickFill": { "message": "Open a quick menu when the current page matches a cached form" }
+  "name": {
+    "message": "Batch Backlink Poster"
+  },
+  "description": {
+    "message": "Batch comment posting with local detection, AI fallback and screenshot results"
+  },
+  "actionTitle": {
+    "message": "Batch Backlink Poster"
+  },
+  "commandQuickFill": {
+    "message": "Open a quick menu when the current page matches a cached form"
+  }
 }

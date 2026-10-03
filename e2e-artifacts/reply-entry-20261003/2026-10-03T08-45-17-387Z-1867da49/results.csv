@@ -1,0 +1,2 @@
+﻿"index","url","content","status","detection_method","entry_strategy","form_type","started_at","completed_at","final_url","screenshot_filename","error"
+"1","http://127.0.0.1:8765/reply-local","Reply entry regression 2026-10-03 — native writer verified.","SUCCESS","local","REPLY_TRIGGER_LOCAL","wordpress_comment","2026-10-03T08:45:17.388Z","2026-10-03T08:45:26.646Z","http://127.0.0.1:8765/result/2?mode=#comment-2","/Users/gaoheyang/Desktop/sea/backlink-poster/e2e-artifacts/reply-entry-20261003/2026-10-03T08-45-17-387Z-1867da49/001-127.0.0.1-success.png",""
